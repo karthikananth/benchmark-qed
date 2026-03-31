@@ -1,23 +1,24 @@
 # BenchmarkQED Container Image
 # For running AutoQ, AutoE, AutoD and LGR Search as containerized services
 
-FROM python:3.11-slim
+# Azure Linux 3.0 base - SFI compliant, fewer CVEs than Debian
+FROM mcr.microsoft.com/azurelinux/base/python:3
 
 # Install system dependencies + azcopy for fast blob downloads
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Azure Linux uses tdnf instead of apt-get
+# azcopy installed via tdnf (official Microsoft package, maintained)
+RUN tdnf install -y \
     git \
     curl \
-    gettext-base \
-    && curl -L https://aka.ms/downloadazcopy-v10-linux | tar -xz --strip-components=1 -C /usr/local/bin \
-    && chmod +x /usr/local/bin/azcopy \
-    && rm -rf /var/lib/apt/lists/*
+    gettext \
+    tar \
+    ca-certificates \
+    azcopy \
+    && tdnf upgrade -y libarchive nghttp2 \
+    && tdnf clean all
 
 # Set working directory
 WORKDIR /app
-
-# SFI CVE Fixes: Upgrade pip, wheel, jaraco.context to patched versions
-# CVE-2026-1703 (pip), GHSA-8rrh-rw8j-w5fx (wheel), GHSA-58pv-8j8x-9vj2 (jaraco.context)
-RUN pip install --no-cache-dir "pip>=26.0" "wheel>=0.46.2" "jaraco.context>=6.1.0"
 
 # Install uv for fast dependency management
 RUN pip install --no-cache-dir uv
@@ -32,6 +33,11 @@ COPY .git/ ./.git/
 
 # Install the package (requires .git for uv-dynamic-versioning)
 RUN pip install --no-cache-dir . azure-storage-queue azure-identity
+
+# SFI CVE Fixes: MUST be AFTER main install to override transitive dependencies
+# CVE-2026-1703 (pip), CVE-2026-24049 (wheel), CVE-2026-23949 (jaraco.context)
+# Use --ignore-installed because Azure Linux has system-managed pip/wheel via RPM
+RUN pip install --no-cache-dir --ignore-installed "pip>=26.0" "wheel>=0.46.2" "jaraco.context>=6.1.0"
 
 # Remove .git after install (not needed at runtime, reduces image size)
 RUN rm -rf .git
