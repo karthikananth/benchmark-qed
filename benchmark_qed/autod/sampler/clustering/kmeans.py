@@ -110,6 +110,9 @@ class KmeansClustering(BaseClustering):
         **_kwargs: Any,
     ) -> list[TextCluster]:
         """Cluster the given text units into k clusters using Kmeans."""
+        # Import checkpoint handler
+        from benchmark_qed.llm.retry_wrapper import ClusteringCheckpoint
+        
         # cluster text units into num_clusters clusters using Kmeans
         filtered_text_units = [
             unit for unit in text_units if unit.text_embedding is not None
@@ -125,29 +128,45 @@ class KmeansClustering(BaseClustering):
         else:
             log.info("Using specified number of clusters: %s", num_clusters)
 
-        # Use MiniBatchKMeans for large datasets (>20K samples) for speed
         n_samples = len(embeddings)
-        if n_samples > 20_000:
-            log.info(
-                "Using MiniBatchKMeans for %s samples (faster for large datasets)",
-                n_samples,
-            )
-            model = MiniBatchKMeans(
-                n_clusters=num_clusters,
-                random_state=self.random_seed,
-                n_init="auto",
-                batch_size=10_000,
-            ).fit(embeddings)
+        
+        # Try to load cached cluster labels
+        checkpoint = ClusteringCheckpoint()
+        cached_labels = checkpoint.get_cached_labels(n_samples, num_clusters)
+        
+        if cached_labels is not None and len(cached_labels) == n_samples:
+            # Use cached labels
+            labels = cached_labels
+            log.info("Using cached cluster labels (skipping K-means)")
         else:
-            model = KMeans(
-                n_clusters=num_clusters,
-                random_state=self.random_seed,
-                n_init="auto",
-            ).fit(embeddings)
+            # Run clustering
+            # Use MiniBatchKMeans for large datasets (>20K samples) for speed
+            if n_samples > 20_000:
+                log.info(
+                    "Using MiniBatchKMeans for %s samples (faster for large datasets)",
+                    n_samples,
+                )
+                model = MiniBatchKMeans(
+                    n_clusters=num_clusters,
+                    random_state=self.random_seed,
+                    n_init="auto",
+                    batch_size=10_000,
+                ).fit(embeddings)
+            else:
+                model = KMeans(
+                    n_clusters=num_clusters,
+                    random_state=self.random_seed,
+                    n_init="auto",
+                ).fit(embeddings)
+            
+            labels = cast(np.ndarray, model.labels_)
+            
+            # Save to checkpoint for future runs
+            checkpoint.save_labels(labels, n_samples, num_clusters)
+        
+        # Build clusters from labels
         clusters = {}
-        for label, unit in zip(
-            cast(np.ndarray, model.labels_), filtered_text_units, strict=False
-        ):
+        for label, unit in zip(labels, filtered_text_units, strict=False):
             if label not in clusters:
                 clusters[label] = [unit]
             else:

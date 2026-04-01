@@ -4,24 +4,23 @@
 # Azure Linux 3.0 base - SFI compliant, fewer CVEs than Debian
 FROM mcr.microsoft.com/azurelinux/base/python:3
 
-# Install system dependencies + azcopy for fast blob downloads
+# Install system dependencies (no azcopy - using Azure SDK instead for SFI compliance)
 # Azure Linux uses tdnf instead of apt-get
-# azcopy installed via tdnf (official Microsoft package, maintained)
 RUN tdnf install -y \
     git \
     curl \
     gettext \
     tar \
     ca-certificates \
-    azcopy \
-    && tdnf upgrade -y libarchive nghttp2 \
+    && tdnf upgrade -y python3 python3-libs libarchive nghttp2 \
     && tdnf clean all
 
 # Set working directory
 WORKDIR /app
 
-# Install uv for fast dependency management
-RUN pip install --no-cache-dir uv
+# Install uv directly from GitHub releases (latest binary with security fixes)
+RUN curl -sL https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-unknown-linux-gnu.tar.gz | tar xz --strip-components=1 -C /usr/bin \
+    && chmod +x /usr/bin/uv /usr/bin/uvx
 
 # Copy dependency files first (for caching)
 COPY pyproject.toml ./
@@ -36,8 +35,21 @@ RUN pip install --no-cache-dir . azure-storage-queue azure-identity
 
 # SFI CVE Fixes: MUST be AFTER main install to override transitive dependencies
 # CVE-2026-1703 (pip), CVE-2026-24049 (wheel), CVE-2026-23949 (jaraco.context)
+# CVE-2026-32597 (PyJWT), CVE-2026-34073/CVE-2026-26007 (cryptography), CVE-2026-25645 (requests)
+# CVE-2025-66418/CVE-2025-66471/CVE-2026-21441 (urllib3), CVE-2025-69223-69230/CVE-2025-53643 (aiohttp)
+# CVE-2026-21226 (azure-core), CVE-2025-66034 (fonttools), CVE-2026-25990 (pillow), CVE-2026-4539 (pygments)
 # Use --ignore-installed because Azure Linux has system-managed pip/wheel via RPM
-RUN pip install --no-cache-dir --ignore-installed "pip>=26.0" "wheel>=0.46.2" "jaraco.context>=6.1.0"
+RUN pip install --no-cache-dir --ignore-installed \
+    "pip>=26.0" "wheel>=0.46.2" "jaraco.context>=6.1.0" \
+    "PyJWT>=2.12.0" \
+    "cryptography>=46.0.6" \
+    "requests>=2.33.0" \
+    "urllib3>=2.6.3" \
+    "aiohttp>=3.13.3" \
+    "azure-core>=1.38.0" \
+    "fonttools>=4.60.2" \
+    "pillow>=12.1.1" \
+    "pygments>=2.20.0"
 
 # Remove .git after install (not needed at runtime, reduces image size)
 RUN rm -rf .git
@@ -63,11 +75,12 @@ ENV LGR_TIMEOUT="20"
 ENV BLOB_INPUT_URL=""
 ENV BLOB_OUTPUT_URL=""
 
-# Copy startup script
+# Copy startup script and blob download helper
 COPY scripts/startup.sh /app/startup.sh
 COPY scripts/run-eval.sh /app/run-eval.sh
 COPY scripts/run_autoq.py /app/scripts/run_autoq.py
 COPY scripts/export_qa_to_pdf.py /app/scripts/export_qa_to_pdf.py
+COPY scripts/blob_download.py /app/scripts/blob_download.py
 RUN chmod +x /app/startup.sh /app/run-eval.sh
 
 # Default entrypoint runs startup script (downloads data, then runs command)
