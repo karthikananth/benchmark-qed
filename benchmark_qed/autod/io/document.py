@@ -272,6 +272,24 @@ def create_documents(
                     metadata_tags=metadata_tags,
                     max_text_length=max_text_length,
                 )
+            case InputDataType.MIXED:
+                # Load both text and JSON files from the directory
+                text_docs = load_text_dir(
+                    dir_path=str(input_path),
+                    encoding=encoding,
+                    max_text_length=max_text_length,
+                )
+                json_docs = load_json_dir(
+                    dir_path=str(input_path),
+                    encoding=encoding,
+                    text_tag=text_tag,
+                    metadata_tags=metadata_tags,
+                    max_text_length=max_text_length,
+                )
+                documents = text_docs + json_docs
+                # Re-assign short_ids after combining
+                for index, doc in enumerate(documents):
+                    doc.short_id = str(index)
             case _:
                 msg = f"Unsupported input type: {input_type}"
                 raise ValueError(msg)

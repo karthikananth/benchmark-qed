@@ -11,3 +11,4 @@ class InputDataType(StrEnum):
     CSV = "csv"
     TEXT = "text"
     PARQUET = "parquet"
+    MIXED = "mixed"  # Load both .txt and .json files from a directory
