@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>BenchmarkQED Evaluation Report — GraphRAG Zero V2 (Dropoff)</title>
+<style>
+body { font-family: Segoe UI, -apple-system, Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #333; line-height: 1.6; }
+h1 { color: #0078d4; border-bottom: 3px solid #0078d4; padding-bottom: 10px; font-size: 24px; }
+h2 { color: #005a9e; margin-top: 36px; font-size: 20px; border-bottom: 1px solid #d2d0ce; padding-bottom: 6px; }
+h3 { color: #323130; font-size: 15px; margin-top: 20px; }
+table { border-collapse: collapse; width: 100%; margin: 14px 0; }
+th, td { border: 1px solid #d2d0ce; padding: 8px 12px; text-align: left; font-size: 14px; }
+th { background: #f3f2f1; font-weight: 600; }
+tr:nth-child(even) { background: #faf9f8; }
+code { background: #f3f2f1; padding: 2px 6px; border-radius: 3px; font-size: 13px; font-family: Consolas, Courier New, monospace; }
+pre { background: #f3f2f1; padding: 14px; border-radius: 6px; overflow-x: auto; font-size: 13px; line-height: 1.4; }
+pre code { background: none; padding: 0; }
+hr { border: none; border-top: 1px solid #d2d0ce; margin: 24px 0; }
+strong { color: #0078d4; }
+ul, ol { padding-left: 24px; }
+li { margin-bottom: 4px; }
+p { margin: 8px 0; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+.badge-v2 { background: #e6f4ea; color: #137333; }
+.change-up { color: #137333; }
+.change-down { color: #c5221f; }
+</style>
+</head><body>
+
+<h1>BenchmarkQED Evaluation Report: GraphRAG Zero <span class="badge badge-v2">V2 — Dropoff</span></h1>
+<p><strong>Date</strong>: April 27, 2026<br />
+<strong>Pipeline Version</strong>: V5 (SQL-Grounded)<br />
+<strong>Search System Under Test</strong>: GraphRAG Zero (GRZ) — v7 settings with dropoff sampling (reasoning removed)<br />
+<strong>Corpus</strong>: Leukemia Drug Discovery — 3,071 curated scientific papers</p>
+
+<hr />
+
+<h2>1. Dataset Overview</h2>
+
+<p>Same corpus and evaluation questions as the LGR and GRZ V1 evaluations. The dataset, questions, and assertions are identical — only the GRZ search settings differ.</p>
+
+<table>
+<thead><tr><th>Property</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td><strong>Documents</strong></td><td>3,071</td></tr>
+<tr><td><strong>Text units (chunks)</strong></td><td>336,374 (GRZ's own chunking with metadata prefix)</td></tr>
+<tr><td><strong>Chunk size</strong></td><td>200 tokens (with metadata prefix consuming part of budget)</td></tr>
+<tr><td><strong>Evaluation Questions</strong></td><td>100 (50 local + 50 global)</td></tr>
+<tr><td><strong>Total Assertions</strong></td><td>557</td></tr>
+</tbody>
+</table>
+
+<hr />
+
+<h2>2. GRZ Search Settings (V2 — Dropoff)</h2>
+
+<p>This run used GRZ's <strong>v7 configuration</strong> with dropoff-based sampling, per Ha Trinh's feedback. The reasoning pipeline was completely removed.</p>
+
+<h3>Settings Comparison: V1 (Reasoning) → V2 (Dropoff)</h3>
+<table>
+<thead><tr><th>Setting</th><th>V1 (Reasoning)</th><th>V2 (Dropoff)</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>sampling.type</code></td><td>reasoning</td><td><strong>dropoff</strong></td><td>Changed per Ha Trinh feedback</td></tr>
+<tr><td><code>sampling.max_answers_chunks</code></td><td>200</td><td>200</td><td>Unchanged — matches LGR relevance budget</td></tr>
+<tr><td><code>sampling.level</code></td><td>null (auto)</td><td>null (auto)</td><td>Unchanged</td></tr>
+<tr><td><code>matching.top_n_nearest_chunks</code></td><td>1,200</td><td>1,200</td><td>Unchanged — matches LGR</td></tr>
+<tr><td><code>dropoff.type</code></td><td>N/A</td><td><strong>fixed</strong> (default)</td><td>New — similarity-based sampling</td></tr>
+<tr><td><code>dropoff.reference</code></td><td>N/A</td><td><strong>relative</strong> (default)</td><td>New</td></tr>
+<tr><td><code>dropoff.restart_on_dropoff</code></td><td>N/A</td><td><strong>0.1</strong> (default)</td><td>New — 10% drop triggers community switch</td></tr>
+<tr><td><code>dropoff.redundancy_penalty</code></td><td>N/A</td><td><strong>1.0</strong> (default)</td><td>New — no penalty</td></tr>
+<tr><td><code>reasoning.text_completions_llm</code></td><td>grader (gpt-5-mini)</td><td>N/A</td><td>Removed</td></tr>
+<tr><td><code>reasoning.relevance_threshold</code></td><td>2</td><td>N/A</td><td>Removed</td></tr>
+<tr><td><code>reasoning.batch_size</code></td><td>15</td><td>N/A</td><td>Removed</td></tr>
+<tr><td><code>reasoning.max_consecutive_failures</code></td><td>3</td><td>N/A</td><td>Removed</td></tr>
+<tr><td><code>reasoning.max_concurrent</code></td><td>25</td><td>N/A</td><td>Removed</td></tr>
+<tr><td><code>reasoning.adaptive_reorder</code></td><td>true</td><td>N/A</td><td>Removed</td></tr>
+<tr><td><code>reasoning.hit_rate_weight</code></td><td>0.5</td><td>N/A</td><td>Removed</td></tr>
+<tr><td><code>reasoning.backfill</code></td><td>true</td><td>N/A</td><td>Removed</td></tr>
+</tbody>
+</table>
+
+<h3>What Changed</h3>
+<p>The key architectural change is replacing <strong>LLM-based chunk grading</strong> (reasoning) with <strong>similarity-based dropoff sampling</strong>. Instead of having gpt-5-mini evaluate each chunk's relevance, V2 uses embedding similarity scores directly with a dropoff threshold to decide when to switch to the next community. This is faster and cheaper (no per-chunk LLM calls) but relies entirely on embedding similarity rather than semantic understanding.</p>
+
+<hr />
+
+<h2>3. GRZ Search Results</h2>
+<table>
+<thead><tr><th>Metric</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td><strong>Questions sent</strong></td><td>100</td></tr>
+<tr><td><strong>Successful responses</strong></td><td>100 (0 timeouts, 0 errors)</td></tr>
+<tr><td><strong>Average response time</strong></td><td>~60 seconds</td></tr>
+<tr><td><strong>Search protocol</strong></td><td>REST API (POST + GET polling)</td></tr>
+</tbody>
+</table>
+
+<hr />
+
+<h2>4. Assertion-Based Metrics (Answer Quality)</h2>
+
+<h3>Overall Results</h3>
+<table>
+<thead><tr><th>Metric</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td><strong>Total assertions evaluated</strong></td><td>557</td></tr>
+<tr><td><strong>Assertions passed</strong></td><td>315</td></tr>
+<tr><td><strong>Assertions failed</strong></td><td>242</td></tr>
+<tr><td><strong>Overall accuracy</strong></td><td><strong>56.6%</strong></td></tr>
+<tr><td><strong>Average question pass rate</strong></td><td><strong>73.4%</strong></td></tr>
+</tbody>
+</table>
+
+<h3>Results by Question Type</h3>
+<table>
+<thead><tr><th>Type</th><th>Questions</th><th>Assertions</th><th>Pass Rate</th></tr></thead>
+<tbody>
+<tr><td><strong>Local</strong></td><td>50</td><td>81</td><td><strong>85.7%</strong></td></tr>
+<tr><td><strong>Global</strong></td><td>50</td><td>476</td><td><strong>61.2%</strong></td></tr>
+</tbody>
+</table>
+
+<h3>Full Comparison: LGR vs GRZ (All Versions)</h3>
+<table>
+<thead><tr><th>Metric</th><th>LGR</th><th>GRZ V1 (reasoning)</th><th>GRZ V2 (dropoff)</th><th>GRZ V3 (paper)</th><th>GRZ V4 (augment)</th></tr></thead>
+<tbody>
+<tr><td><strong>Overall pass rate</strong></td><td><strong>75.4%</strong></td><td>74.6%</td><td>73.4%</td><td>73.2%</td><td>71.8%</td></tr>
+<tr><td><strong>Local questions</strong></td><td>79.3%</td><td>83.7%</td><td><strong>85.7%</strong></td><td>85.3%</td><td>85.3%</td></tr>
+<tr><td><strong>Global questions</strong></td><td><strong>71.4%</strong></td><td>65.5%</td><td>61.2%</td><td>61.2%</td><td>58.3%</td></tr>
+<tr><td><strong>Overall accuracy</strong></td><td><strong>62.7%</strong></td><td>60.9%</td><td>56.6%</td><td>56.7%</td><td>54.9%</td></tr>
+</tbody>
+</table>
+
+<h3>V1 → V2 Changes</h3>
+<table>
+<thead><tr><th>Metric</th><th>V1</th><th>V2</th><th>Change</th></tr></thead>
+<tbody>
+<tr><td><strong>Overall pass rate</strong></td><td>74.6%</td><td>73.4%</td><td><span class="change-down">−1.2%</span></td></tr>
+<tr><td><strong>Local questions</strong></td><td>83.7%</td><td>85.7%</td><td><span class="change-up">+2.0%</span></td></tr>
+<tr><td><strong>Global questions</strong></td><td>65.5%</td><td>61.2%</td><td><span class="change-down">−4.3%</span></td></tr>
+<tr><td><strong>Overall accuracy</strong></td><td>60.9%</td><td>56.6%</td><td><span class="change-down">−4.3%</span></td></tr>
+</tbody>
+</table>
+
+<hr />
+
+<h2>5. Analysis: Impact of Removing Reasoning</h2>
+
+<h3>Local Questions: Improved (+2.0%)</h3>
+<p>Dropoff sampling slightly improved local question performance. For fact-finding questions targeting specific passages, the similarity-based approach is sufficient — the most relevant chunks are typically the nearest neighbors, and the LLM grading step in V1 may have occasionally filtered out relevant chunks that scored below the relevance threshold of 2.</p>
+
+<h3>Global Questions: Degraded (−4.3%)</h3>
+<p>The larger drop in global question performance suggests that reasoning-based chunk grading provided value for cross-document synthesis. The LLM grader could assess whether a chunk contributed new topical coverage, while pure similarity-based dropoff may cluster around a few dominant themes and miss peripheral-but-relevant topics.</p>
+
+<h3>Cost/Latency Tradeoff</h3>
+<p>V2 eliminates per-chunk LLM calls (up to 1,200 × gpt-5-mini calls per question), significantly reducing cost and latency. The ~10s reduction in average response time (70s → 60s) is modest, but the cost savings from removing the reasoning LLM are substantial for high-volume deployments.</p>
+
+<hr />
+
+<h2>6. Configuration Reference</h2>
+<table>
+<thead><tr><th>Component</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td><strong>GRZ Instance</strong></td><td><code>grz-search</code> (Sweden Central)</td></tr>
+<tr><td><strong>GRZ SQL Database</strong></td><td><code>sql-grz-poc</code> / <code>graphragzero</code></td></tr>
+<tr><td><strong>AOAI Endpoint</strong></td><td><code>aoai-lgr-poc</code> (Sweden Central)</td></tr>
+<tr><td><strong>Chat Model (answer generation)</strong></td><td>GPT-5.2 (temp=0, reasoning=none, seed=42)</td></tr>
+<tr><td><strong>Sampling LLM</strong></td><td>None (dropoff is embedding-based)</td></tr>
+<tr><td><strong>AutoE Scoring Model</strong></td><td>GPT-5.2 (temp=0, reasoning=none, seed=42)</td></tr>
+<tr><td><strong>Container Image</strong></td><td>benchmark-qed:v45</td></tr>
+<tr><td><strong>AutoE Output</strong></td><td><code>autoe_scores_20260427_210711/</code></td></tr>
+</tbody>
+</table>
+
+<hr />
+
+<h2>7. Summary</h2>
+<p>GraphRAG Zero V2 (dropoff sampling, no reasoning) shows a mixed impact from removing the reasoning pipeline:</p>
+<ul>
+<li><strong>Local questions improved</strong> to 85.7% (best across all systems) — pure similarity retrieval is effective for document-specific fact-finding</li>
+<li><strong>Global questions degraded</strong> to 61.2% — the loss of LLM-based chunk grading reduces thematic diversity in retrieved context</li>
+<li><strong>Overall pass rate dropped slightly</strong> from 74.6% to 73.4% — the global degradation outweighs the local improvement</li>
+<li><strong>LGR remains the overall leader</strong> at 75.4%, primarily due to its superior global question handling (71.4%)</li>
+</ul>
+
+<p><strong>Recommendation</strong>: The choice between V1 and V2 depends on the deployment context. For applications dominated by local/specific queries, V2 (dropoff) offers comparable or better quality at lower cost. For applications requiring broad thematic synthesis, V1 (reasoning) or LGR are preferred.</p>
+
+</body></html>

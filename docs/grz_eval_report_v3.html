@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>BenchmarkQED Evaluation Report — GraphRAG Zero V3 (Paper/v8)</title>
+<style>
+body { font-family: Segoe UI, -apple-system, Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #333; line-height: 1.6; }
+h1 { color: #0078d4; border-bottom: 3px solid #0078d4; padding-bottom: 10px; font-size: 24px; }
+h2 { color: #005a9e; margin-top: 36px; font-size: 20px; border-bottom: 1px solid #d2d0ce; padding-bottom: 6px; }
+h3 { color: #323130; font-size: 15px; margin-top: 20px; }
+table { border-collapse: collapse; width: 100%; margin: 14px 0; }
+th, td { border: 1px solid #d2d0ce; padding: 8px 12px; text-align: left; font-size: 14px; }
+th { background: #f3f2f1; font-weight: 600; }
+tr:nth-child(even) { background: #faf9f8; }
+code { background: #f3f2f1; padding: 2px 6px; border-radius: 3px; font-size: 13px; font-family: Consolas, Courier New, monospace; }
+pre { background: #f3f2f1; padding: 14px; border-radius: 6px; overflow-x: auto; font-size: 13px; line-height: 1.4; }
+pre code { background: none; padding: 0; }
+hr { border: none; border-top: 1px solid #d2d0ce; margin: 24px 0; }
+strong { color: #0078d4; }
+ul, ol { padding-left: 24px; }
+li { margin-bottom: 4px; }
+p { margin: 8px 0; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+.badge-v3 { background: #fce8e6; color: #c5221f; }
+.best { background: #e6f4ea; font-weight: 600; }
+.change-up { color: #137333; }
+.change-down { color: #c5221f; }
+.change-flat { color: #5f6368; }
+</style>
+</head><body>
+
+<h1>BenchmarkQED Evaluation Report: GraphRAG Zero <span class="badge badge-v3">V3 — Paper (v8)</span></h1>
+<p><strong>Date</strong>: April 27, 2026<br />
+<strong>Pipeline Version</strong>: V5 (SQL-Grounded)<br />
+<strong>Search System Under Test</strong>: GraphRAG Zero (GRZ) — v8 paper settings with query-based sampling<br />
+<strong>Corpus</strong>: Leukemia Drug Discovery — 3,071 curated scientific papers</p>
+
+<hr />
+
+<h2>1. Dataset Overview</h2>
+
+<p>Same corpus, questions, and assertions as all prior evaluations (LGR, GRZ V1, GRZ V2). Only the GRZ search settings differ.</p>
+
+<table>
+<thead><tr><th>Property</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td><strong>Documents</strong></td><td>3,071</td></tr>
+<tr><td><strong>Text units (chunks)</strong></td><td>336,374 (GRZ chunking)</td></tr>
+<tr><td><strong>Evaluation Questions</strong></td><td>100 (50 local + 50 global)</td></tr>
+<tr><td><strong>Total Assertions</strong></td><td>557</td></tr>
+</tbody>
+</table>
+
+<hr />
+
+<h2>2. GRZ Search Settings Evolution: v6 → v7 → v8</h2>
+
+<p>V3 uses the <strong>v8 (paper) configuration</strong> with query-based sampling, LDA query classification, and separate local/global tuning parameters.</p>
+
+<h3>Full Settings Comparison</h3>
+<table>
+<thead><tr><th>Setting</th><th>v6 (Reasoning)</th><th>v7 (Dropoff)</th><th>v8 (Paper)</th></tr></thead>
+<tbody>
+<tr><td><code>sampling.type</code></td><td>reasoning</td><td>dropoff</td><td><strong>query_based</strong></td></tr>
+<tr><td><code>query_classification</code></td><td>None</td><td>None</td><td><strong>lda</strong> (auto local/global)</td></tr>
+<tr><td><code>dropoff.type</code></td><td>N/A</td><td>fixed (default)</td><td><strong>dynamic</strong> (elbow detection)</td></tr>
+<tr><td><code>dropoff.reference</code></td><td>N/A</td><td>relative (default)</td><td><strong>relative</strong></td></tr>
+<tr><td>Local: <code>δ cap</code></td><td>N/A</td><td>None</td><td><strong>0.1</strong> (tight)</td></tr>
+<tr><td>Local: <code>λ (MMR)</code></td><td>N/A</td><td>1.0 (default)</td><td><strong>1.0</strong> (no MMR)</td></tr>
+<tr><td>Global: <code>δ cap</code></td><td>N/A</td><td>None</td><td><strong>0.3</strong> (wide)</td></tr>
+<tr><td>Global: <code>λ (MMR)</code></td><td>N/A</td><td>1.0 (default)</td><td><strong>0.9</strong> (redundancy penalty)</td></tr>
+<tr><td><code>restart_on_dropoff</code></td><td>N/A</td><td>0.1 (default)</td><td><strong>null</strong> (dynamic computes)</td></tr>
+<tr><td><code>top_n_nearest_chunks</code></td><td>1,200</td><td>1,200</td><td>1,200</td></tr>
+<tr><td><code>max_answers_chunks</code></td><td>200</td><td>200</td><td>200</td></tr>
+<tr><td><code>level</code></td><td>null (leaf)</td><td>null (leaf)</td><td>null (leaf)</td></tr>
+<tr><td><code>reasoning.*</code></td><td>grader (gpt-5-mini), threshold=2, batch=15, concurrent=25, adaptive_reorder, backfill</td><td>N/A (removed)</td><td>N/A (removed)</td></tr>
+</tbody>
+</table>
+
+<h3>Key v8 Changes from v7</h3>
+<ul>
+<li><strong>Query-based sampling</strong>: Automatically classifies queries via LDA as local or global, applying different retrieval strategies</li>
+<li><strong>Dynamic elbow detection</strong>: Replaces fixed dropoff with automatic elbow point detection for community switching</li>
+<li><strong>Separate local/global tuning</strong>: Local uses tight δ=0.1 (focused retrieval), global uses wide δ=0.3 (broader coverage)</li>
+<li><strong>MMR redundancy penalty</strong>: Global queries apply λ=0.9 to penalize redundant chunks, encouraging diversity</li>
+<li><strong>Dynamic restart</strong>: <code>restart_on_dropoff=null</code> lets the system compute optimal restart thresholds</li>
+</ul>
+
+<hr />
+
+<h2>3. GRZ Search Results</h2>
+<table>
+<thead><tr><th>Metric</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td><strong>Questions sent</strong></td><td>100</td></tr>
+<tr><td><strong>Successful responses</strong></td><td>100 (0 timeouts, 0 errors)</td></tr>
+<tr><td><strong>Average response time</strong></td><td>~36 seconds</td></tr>
+<tr><td><strong>Total search time</strong></td><td>~36 minutes</td></tr>
+</tbody>
+</table>
+
+<hr />
+
+<h2>4. Assertion-Based Metrics (Answer Quality)</h2>
+
+<h3>Overall Results</h3>
+<table>
+<thead><tr><th>Metric</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td><strong>Total assertions evaluated</strong></td><td>557</td></tr>
+<tr><td><strong>Assertions passed</strong></td><td>316</td></tr>
+<tr><td><strong>Assertions failed</strong></td><td>241</td></tr>
+<tr><td><strong>Overall accuracy</strong></td><td><strong>56.7%</strong></td></tr>
+<tr><td><strong>Average question pass rate</strong></td><td><strong>73.2%</strong></td></tr>
+</tbody>
+</table>
+
+<h3>Results by Question Type</h3>
+<table>
+<thead><tr><th>Type</th><th>Questions</th><th>Assertions</th><th>Pass Rate</th></tr></thead>
+<tbody>
+<tr><td><strong>Local</strong></td><td>50</td><td>81</td><td><strong>85.3%</strong></td></tr>
+<tr><td><strong>Global</strong></td><td>50</td><td>476</td><td><strong>61.2%</strong></td></tr>
+</tbody>
+</table>
+
+<hr />
+
+<h2>5. Full Comparison: LGR vs GRZ (All Versions)</h2>
+
+<table>
+<thead><tr><th>Metric</th><th>LGR</th><th>GRZ V1 (reasoning)</th><th>GRZ V2 (dropoff)</th><th>GRZ V3 (paper/v8)</th></tr></thead>
+<tbody>
+<tr>
+<td><strong>Overall pass rate</strong></td>
+<td class="best">75.4%</td>
+<td>74.6%</td>
+<td>73.4%</td>
+<td>73.2%</td>
+</tr>
+<tr>
+<td><strong>Local questions</strong></td>
+<td>79.3%</td>
+<td>83.7%</td>
+<td class="best">85.7%</td>
+<td>85.3%</td>
+</tr>
+<tr>
+<td><strong>Global questions</strong></td>
+<td class="best">71.4%</td>
+<td>65.5%</td>
+<td>61.2%</td>
+<td>61.2%</td>
+</tr>
+<tr>
+<td><strong>Overall accuracy</strong></td>
+<td class="best">62.7%</td>
+<td>60.9%</td>
+<td>56.6%</td>
+<td>56.7%</td>
+</tr>
+<tr>
+<td><strong>Avg response time</strong></td>
+<td>~80s</td>
+<td>~70s</td>
+<td>~60s</td>
+<td>~36s</td>
+</tr>
+<tr>
+<td><strong>Total search time</strong></td>
+<td>~133 min</td>
+<td>~36 min</td>
+<td>~39 min</td>
+<td>~36 min</td>
+</tr>
+</tbody>
+</table>
+
+<p><em>Green cells indicate best score in each row.</em></p>
+
+<h3>GRZ Version Progression</h3>
+<table>
+<thead><tr><th>Metric</th><th>V1 → V2</th><th>V2 → V3</th><th>V1 → V3</th></tr></thead>
+<tbody>
+<tr><td><strong>Overall pass rate</strong></td><td><span class="change-down">−1.2%</span></td><td><span class="change-down">−0.2%</span></td><td><span class="change-down">−1.4%</span></td></tr>
+<tr><td><strong>Local questions</strong></td><td><span class="change-up">+2.0%</span></td><td><span class="change-down">−0.4%</span></td><td><span class="change-up">+1.6%</span></td></tr>
+<tr><td><strong>Global questions</strong></td><td><span class="change-down">−4.3%</span></td><td><span class="change-flat">0.0%</span></td><td><span class="change-down">−4.3%</span></td></tr>
+<tr><td><strong>Overall accuracy</strong></td><td><span class="change-down">−4.3%</span></td><td><span class="change-up">+0.1%</span></td><td><span class="change-down">−4.2%</span></td></tr>
+</tbody>
+</table>
+
+<hr />
+
+<h2>6. Analysis</h2>
+
+<h3>V3 vs V2: Negligible Difference</h3>
+<p>The v8 paper settings (query-based sampling, LDA classification, dynamic elbow detection, separate local/global tuning) produced results essentially identical to v7 dropoff. The sophisticated per-query-type parameter tuning did not translate to measurable quality improvements on this corpus.</p>
+
+<h3>The Reasoning Gap</h3>
+<p>The most significant quality difference remains the V1→V2 transition (removing reasoning). The LLM-based chunk grading in V1 provided a ~4% advantage on global questions that neither V2 nor V3 recovered. This suggests that for cross-document synthesis, semantic chunk evaluation (even with a smaller model like gpt-5-mini) provides value that embedding-based methods cannot replicate.</p>
+
+<h3>Local vs Global Trade-off</h3>
+<p>All GRZ versions outperform LGR on local questions (83-86% vs 79.3%), while LGR consistently outperforms on global questions (71.4% vs 61-66%). This reflects a fundamental architectural difference:</p>
+<ul>
+<li><strong>GRZ</strong>: Community-based retrieval with chunk-level selection excels at finding specific passages</li>
+<li><strong>LGR</strong>: Graph-based retrieval with lazy evaluation provides broader thematic coverage for synthesis tasks</li>
+</ul>
+
+<h3>Speed vs Quality</h3>
+<p>GRZ V3 is the fastest system at ~36s/question (vs LGR at ~80s/question), while maintaining competitive local question quality. For latency-sensitive applications focused on specific fact-finding, GRZ offers a compelling speed-quality trade-off.</p>
+
+<hr />
+
+<h2>7. Configuration Reference</h2>
+<table>
+<thead><tr><th>Component</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td><strong>GRZ Instance</strong></td><td><code>grz-search</code> (Sweden Central)</td></tr>
+<tr><td><strong>GRZ Settings Version</strong></td><td>v8 (paper)</td></tr>
+<tr><td><strong>AOAI Endpoint</strong></td><td><code>aoai-lgr-poc</code> (Sweden Central)</td></tr>
+<tr><td><strong>Chat Model</strong></td><td>GPT-5.2 (temp=0, reasoning=none, seed=42)</td></tr>
+<tr><td><strong>AutoE Scoring Model</strong></td><td>GPT-5.2 (temp=0, reasoning=none, seed=42)</td></tr>
+<tr><td><strong>Container Image</strong></td><td>benchmark-qed:v45</td></tr>
+<tr><td><strong>AutoE Output</strong></td><td><code>autoe_scores_20260427_233323/</code></td></tr>
+</tbody>
+</table>
+
+<hr />
+
+<h2>8. Summary</h2>
+
+<p>Three GRZ configurations were evaluated against the same 100 questions and 557 assertions used for the LGR baseline:</p>
+
+<ol>
+<li><strong>GRZ V1 (reasoning/v6)</strong>: Best GRZ overall at 74.6%, closest to LGR (75.4%). LLM-based chunk grading helps global questions.</li>
+<li><strong>GRZ V2 (dropoff/v7)</strong>: Fastest local results (85.7%) but global dropped 4.3%. Removing reasoning hurt synthesis quality.</li>
+<li><strong>GRZ V3 (paper/v8)</strong>: Query-based sampling with per-type tuning — essentially identical to V2 despite added complexity.</li>
+</ol>
+
+<p><strong>Key conclusions</strong>:</p>
+<ul>
+<li>LGR remains the overall quality leader, driven by a 10+ point advantage on global synthesis questions</li>
+<li>All GRZ versions outperform LGR on local/specific questions by 4-6 points</li>
+<li>The reasoning pipeline (V1) provides the best GRZ global performance; removing it (V2/V3) degrades global by ~4% while slightly improving local</li>
+<li>The v8 paper settings (dynamic elbow, LDA classification, per-type δ/λ) do not improve over simple dropoff (v7)</li>
+<li>GRZ is 2-4× faster than LGR in search latency</li>
+</ul>
+
+</body></html>

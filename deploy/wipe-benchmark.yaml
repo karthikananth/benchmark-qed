@@ -1,0 +1,28 @@
+# BenchmarkQED Wipe Container Configuration
+# Pattern matches lgr-app's wipe-container.yaml for SFI compliance
+#
+# Usage: az containerapp update -n benchmark-qed -g rg-lazygraphrag-poc --yaml deploy/wipe-benchmark.yaml
+#
+# IMPORTANT: Only wipes /mnt/checkpoints/benchmark-qed/* to avoid affecting lgr-app data!
+# The NFS share is shared with lgr-app which uses the root level.
+
+properties:
+  template:
+    containers:
+    - name: benchmark-qed
+      image: acrlgrpoc.azurecr.io/benchmark-qed:v14
+      command: ["/bin/sh", "-c", "echo 'Wiping benchmark-qed checkpoints ONLY...' && ls -la /mnt/checkpoints/benchmark-qed/ 2>/dev/null || echo 'Directory does not exist' && rm -rf /mnt/checkpoints/benchmark-qed/* && echo 'BENCHMARK_QED_WIPED' && echo 'Only /mnt/checkpoints/benchmark-qed/* was removed' && echo 'lgr-app data preserved:' && ls -la /mnt/checkpoints/ && sleep 60"]
+      resources:
+        cpu: 0.5
+        memory: 1Gi
+      volumeMounts:
+        - mountPath: /mnt/checkpoints
+          volumeName: checkpoint-vol
+    volumes:
+      - name: checkpoint-vol
+        storageName: lgrcachenfs
+        storageType: NfsAzureFile
+    scale:
+      minReplicas: 1
+      maxReplicas: 1
+  workloadProfileName: Consumption

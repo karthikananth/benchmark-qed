@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>BenchmarkQED Evaluation Report — GraphRAG Zero V4 (Augmentation/v9)</title>
+<style>
+body { font-family: Segoe UI, -apple-system, Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #333; line-height: 1.6; }
+h1 { color: #0078d4; border-bottom: 3px solid #0078d4; padding-bottom: 10px; font-size: 24px; }
+h2 { color: #005a9e; margin-top: 36px; font-size: 20px; border-bottom: 1px solid #d2d0ce; padding-bottom: 6px; }
+h3 { color: #323130; font-size: 15px; margin-top: 20px; }
+table { border-collapse: collapse; width: 100%; margin: 14px 0; }
+th, td { border: 1px solid #d2d0ce; padding: 8px 12px; text-align: left; font-size: 14px; }
+th { background: #f3f2f1; font-weight: 600; }
+tr:nth-child(even) { background: #faf9f8; }
+code { background: #f3f2f1; padding: 2px 6px; border-radius: 3px; font-size: 13px; font-family: Consolas, Courier New, monospace; }
+pre { background: #f3f2f1; padding: 14px; border-radius: 6px; overflow-x: auto; font-size: 13px; line-height: 1.4; }
+pre code { background: none; padding: 0; }
+hr { border: none; border-top: 1px solid #d2d0ce; margin: 24px 0; }
+strong { color: #0078d4; }
+ul, ol { padding-left: 24px; }
+li { margin-bottom: 4px; }
+p { margin: 8px 0; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+.badge-v4 { background: #fff3e0; color: #e65100; }
+.best { background: #e6f4ea; font-weight: 600; }
+.worst { background: #fce8e6; }
+.change-up { color: #137333; }
+.change-down { color: #c5221f; }
+.change-flat { color: #5f6368; }
+</style>
+</head><body>
+
+<h1>BenchmarkQED Evaluation Report: GraphRAG Zero <span class="badge badge-v4">V4 — Augmentation (v9)</span></h1>
+<p><strong>Date</strong>: April 28, 2026<br />
+<strong>Pipeline Version</strong>: V5 (SQL-Grounded)<br />
+<strong>Search System Under Test</strong>: GraphRAG Zero (GRZ) — v9 settings with query augmentation enabled<br />
+<strong>Corpus</strong>: Leukemia Drug Discovery — 3,071 curated scientific papers</p>
+
+<hr />
+
+<h2>1. Dataset Overview</h2>
+<p>Same corpus, questions, and assertions as all prior evaluations. Only the GRZ search settings differ.</p>
+
+<table>
+<thead><tr><th>Property</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td><strong>Documents</strong></td><td>3,071</td></tr>
+<tr><td><strong>Text units (chunks)</strong></td><td>336,374 (GRZ chunking)</td></tr>
+<tr><td><strong>Evaluation Questions</strong></td><td>100 (50 local + 50 global)</td></tr>
+<tr><td><strong>Total Assertions</strong></td><td>557</td></tr>
+</tbody>
+</table>
+
+<hr />
+
+<h2>2. GRZ Search Settings (V4 — Augmentation/v9)</h2>
+
+<p>V4 introduces <strong>query augmentation</strong> — the first GRZ configuration to use an LLM during the retrieval phase (since V1's reasoning was removed). The hypothesis: generating follow-on queries will broaden chunk coverage for global questions without affecting local performance.</p>
+
+<h3>Full Settings Evolution: v6 → v7 → v8 → v9</h3>
+<table>
+<thead><tr><th>Setting</th><th>V1 / v6 (reasoning)</th><th>V2 / v7 (dropoff)</th><th>V3 / v8 (paper)</th><th>V4 / v9 (augmentation)</th></tr></thead>
+<tbody>
+<tr><td><code>sampling.type</code></td><td>reasoning</td><td>dropoff</td><td>query_based</td><td><strong>query_based</strong></td></tr>
+<tr><td><code>dropoff.type</code></td><td>fixed</td><td>fixed</td><td>dynamic (elbow)</td><td><strong>dynamic (elbow)</strong></td></tr>
+<tr><td><code>query_classification</code></td><td>none</td><td>none</td><td>LDA</td><td><strong>LDA</strong></td></tr>
+<tr><td>Local: <code>δ cap</code></td><td>0.1</td><td>0.1</td><td>0.1</td><td><strong>0.1</strong></td></tr>
+<tr><td>Global: <code>δ cap</code></td><td>0.1</td><td>0.1</td><td>0.3</td><td><strong>0.3</strong></td></tr>
+<tr><td>Local: <code>λ (MMR)</code></td><td>1.0</td><td>1.0</td><td>1.0</td><td><strong>1.0</strong></td></tr>
+<tr><td>Global: <code>λ (MMR)</code></td><td>1.0</td><td>1.0</td><td>0.9</td><td><strong>0.9</strong></td></tr>
+<tr><td><strong>Query augmentation</strong></td><td>❌</td><td>❌</td><td>❌</td><td><strong>✅ enabled</strong></td></tr>
+<tr><td>Augmentation iterations</td><td>–</td><td>–</td><td>–</td><td><strong>1 (one-shot)</strong></td></tr>
+<tr><td>Follow-on queries</td><td>–</td><td>–</td><td>–</td><td><strong>10</strong></td></tr>
+<tr><td>Augmentation chunks/iter</td><td>–</td><td>–</td><td>–</td><td><strong>50</strong></td></tr>
+<tr><td>Augmentation LLM</td><td>–</td><td>–</td><td>–</td><td><strong>gpt-5.2</strong></td></tr>
+<tr><td>Chunk accumulation</td><td>–</td><td>–</td><td>–</td><td><strong>union</strong></td></tr>
+<tr><td><code>top_n_nearest_chunks</code></td><td>1,200</td><td>1,200</td><td>1,200</td><td>1,200</td></tr>
+<tr><td><code>max_answers_chunks</code></td><td>200</td><td>200</td><td>200</td><td>200</td></tr>
+<tr><td><code>level</code></td><td>null (leaf)</td><td>null (leaf)</td><td>null (leaf)</td><td>null (leaf)</td></tr>
+<tr><td>Grader LLM</td><td>gpt-5-mini</td><td>–</td><td>–</td><td>–</td></tr>
+<tr><td>LLM calls/query</td><td>Many</td><td>1</td><td>1</td><td><strong>2 (answer + augment)</strong></td></tr>
+<tr><td>Est. cost/query</td><td>~$0.38</td><td>~$0.05</td><td>~$0.05</td><td><strong>~$0.10</strong></td></tr>
+</tbody>
+</table>
+
+<h3>How Query Augmentation Works</h3>
+<p>For each question, the augmentation pipeline:</p>
+<ol>
+<li><strong>Generates 10 follow-on queries</strong> using gpt-5.2 — sub-questions exploring different aspects of the original query</li>
+<li><strong>Retrieves 50 chunks per follow-on query</strong> from the nearest-neighbor index</li>
+<li><strong>Unions all retrieved chunks</strong> with the original query's chunks, deduplicating</li>
+<li><strong>Applies the 200-chunk budget</strong> to the merged pool via dropoff sampling</li>
+<li><strong>Generates the final answer</strong> from the augmented context</li>
+</ol>
+
+<h3>Observed Impact on Test Query</h3>
+<table>
+<thead><tr><th>Metric</th><th>V3 Global</th><th>V4 Global</th><th>V3 Local</th><th>V4 Local</th></tr></thead>
+<tbody>
+<tr><td><strong>Retrieve time</strong></td><td>13.3s</td><td>11.2s</td><td>2.3s</td><td>1.6s</td></tr>
+<tr><td><strong>Answer time</strong></td><td>20.9s</td><td>15.2s</td><td>6.0s</td><td>5.5s</td></tr>
+<tr><td><strong>Total time</strong></td><td>34.2s</td><td>26.4s</td><td>8.3s</td><td>7.1s</td></tr>
+<tr><td><strong>Sources (DOIs)</strong></td><td>9</td><td><strong>13</strong></td><td>5</td><td>5</td></tr>
+<tr><td><strong>Sampled chunks</strong></td><td>200</td><td>200</td><td>200</td><td>200</td></tr>
+</tbody>
+</table>
+<p>The augmentation pulled in 4 additional diverse sources for global queries (covering CNS therapy, MRD-guided decisions, and molecular targeting that V3 missed) while leaving local queries unchanged.</p>
+
+<hr />
+
+<h2>3. GRZ Search Results</h2>
+<table>
+<thead><tr><th>Metric</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td><strong>Questions sent</strong></td><td>100</td></tr>
+<tr><td><strong>Successful responses</strong></td><td>100 (0 timeouts, 0 errors)</td></tr>
+<tr><td><strong>Total search time</strong></td><td>~33 minutes</td></tr>
+<tr><td><strong>Search protocol</strong></td><td>REST API (POST + GET polling)</td></tr>
+</tbody>
+</table>
+
+<hr />
+
+<h2>4. Assertion-Based Metrics (Answer Quality)</h2>
+
+<h3>Overall Results</h3>
+<table>
+<thead><tr><th>Metric</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td><strong>Total assertions evaluated</strong></td><td>557</td></tr>
+<tr><td><strong>Assertions passed</strong></td><td>306</td></tr>
+<tr><td><strong>Assertions failed</strong></td><td>251</td></tr>
+<tr><td><strong>Overall accuracy</strong></td><td><strong>54.9%</strong></td></tr>
+<tr><td><strong>Average question pass rate</strong></td><td><strong>71.8%</strong></td></tr>
+</tbody>
+</table>
+
+<h3>Results by Question Type</h3>
+<table>
+<thead><tr><th>Type</th><th>Questions</th><th>Assertions</th><th>Pass Rate</th></tr></thead>
+<tbody>
+<tr><td><strong>Local</strong></td><td>50</td><td>81</td><td><strong>85.3%</strong></td></tr>
+<tr><td><strong>Global</strong></td><td>50</td><td>476</td><td><strong>58.3%</strong></td></tr>
+</tbody>
+</table>
+
+<hr />
+
+<h2>5. Full Comparison: All Systems</h2>
+
+<table>
+<thead><tr><th>Metric</th><th>LGR</th><th>GRZ V1 (reasoning)</th><th>GRZ V2 (dropoff)</th><th>GRZ V3 (paper)</th><th>GRZ V4 (augment)</th></tr></thead>
+<tbody>
+<tr>
+<td><strong>Overall pass rate</strong></td>
+<td class="best">75.4%</td>
+<td>74.6%</td>
+<td>73.4%</td>
+<td>73.2%</td>
+<td class="worst">71.8%</td>
+</tr>
+<tr>
+<td><strong>Local questions</strong></td>
+<td>79.3%</td>
+<td>83.7%</td>
+<td class="best">85.7%</td>
+<td>85.3%</td>
+<td>85.3%</td>
+</tr>
+<tr>
+<td><strong>Global questions</strong></td>
+<td class="best">71.4%</td>
+<td>65.5%</td>
+<td>61.2%</td>
+<td>61.2%</td>
+<td class="worst">58.3%</td>
+</tr>
+<tr>
+<td><strong>Overall accuracy</strong></td>
+<td class="best">62.7%</td>
+<td>60.9%</td>
+<td>56.6%</td>
+<td>56.7%</td>
+<td class="worst">54.9%</td>
+</tr>
+<tr>
+<td><strong>Est. cost/query</strong></td>
+<td>–</td>
+<td>~$0.38</td>
+<td>~$0.05</td>
+<td>~$0.05</td>
+<td>~$0.10</td>
+</tr>
+</tbody>
+</table>
+
+<h3>GRZ Version Progression on Global Questions</h3>
+<table>
+<thead><tr><th>Version</th><th>Global Pass Rate</th><th>Change from V1</th><th>Gap to LGR (71.4%)</th></tr></thead>
+<tbody>
+<tr><td><strong>V1</strong> (reasoning)</td><td>65.5%</td><td>baseline</td><td>−5.9%</td></tr>
+<tr><td><strong>V2</strong> (dropoff)</td><td>61.2%</td><td><span class="change-down">−4.3%</span></td><td>−10.2%</td></tr>
+<tr><td><strong>V3</strong> (paper)</td><td>61.2%</td><td><span class="change-down">−4.3%</span></td><td>−10.2%</td></tr>
+<tr><td><strong>V4</strong> (augmentation)</td><td>58.3%</td><td><span class="change-down">−7.2%</span></td><td>−13.1%</td></tr>
+</tbody>
+</table>
+
+<hr />
+
+<h2>6. Analysis: Why Augmentation Didn't Help</h2>
+
+<h3>The Paradox: More Sources, Worse Scores</h3>
+<p>V4's augmentation successfully broadened source diversity (13 DOIs vs 9 for global queries in test), yet assertion pass rates <em>decreased</em>. Several factors may explain this:</p>
+
+<ul>
+<li><strong>Context dilution</strong>: The 200-chunk budget is fixed. Augmentation brings in chunks from 10 follow-on queries, but these compete with the original query's most relevant chunks for the same 200 slots. The result: broader but shallower coverage per topic.</li>
+
+<li><strong>Follow-on query quality</strong>: The 10 generated follow-on queries may explore tangential aspects rather than the core themes the assertions test. The assertions are grounded in the cluster's central topics — if augmentation pulls in peripheral material, it dilutes rather than enriches.</li>
+
+<li><strong>Union deduplication effects</strong>: Unioning chunks from multiple queries may inadvertently prioritize chunks that appear in multiple follow-on retrievals (popular but generic text) over rare but highly relevant passages.</li>
+
+<li><strong>Answer generation pressure</strong>: With a broader but less focused context window, gpt-5.2 may produce more "survey-like" answers that mention many topics superficially rather than covering the assertion-tested themes in sufficient depth.</li>
+</ul>
+
+<h3>Local Questions: Unaffected (85.3%)</h3>
+<p>Local question performance remained identical to V3, confirming that the LDA query classification correctly identifies local queries and applies minimal augmentation to them.</p>
+
+<h3>Comparison with V1 (Reasoning)</h3>
+<p>V1's reasoning approach (LLM-graded chunks) remains the best GRZ configuration for global questions (65.5%), despite being the most expensive (~$0.38/query). The key difference: reasoning evaluates each chunk's <em>relevance to the specific question</em>, while augmentation generates <em>related but different questions</em>. Relevance filtering is more valuable than query expansion for assertion-based evaluation.</p>
+
+<hr />
+
+<h2>7. Configuration Reference</h2>
+<table>
+<thead><tr><th>Component</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td><strong>GRZ Instance</strong></td><td><code>grz-search</code> (Sweden Central)</td></tr>
+<tr><td><strong>GRZ Settings Version</strong></td><td>v9 (+ augmentation)</td></tr>
+<tr><td><strong>AOAI Endpoint</strong></td><td><code>aoai-lgr-poc</code> (Sweden Central)</td></tr>
+<tr><td><strong>Chat Model</strong></td><td>GPT-5.2 (temp=0, reasoning=none, seed=42)</td></tr>
+<tr><td><strong>Augmentation LLM</strong></td><td>GPT-5.2 (10 follow-on queries, 50 chunks/iter)</td></tr>
+<tr><td><strong>AutoE Scoring Model</strong></td><td>GPT-5.2 (temp=0, reasoning=none, seed=42)</td></tr>
+<tr><td><strong>Container Image</strong></td><td>benchmark-qed:v45</td></tr>
+<tr><td><strong>AutoE Output</strong></td><td><code>autoe_scores_20260428_005423/</code></td></tr>
+</tbody>
+</table>
+
+<hr />
+
+<h2>8. Summary</h2>
+
+<p>GraphRAG Zero V4 (v9 with query augmentation) tested whether LLM-generated follow-on queries could close the global question gap with LGR. The results are clear:</p>
+
+<ul>
+<li><strong>Augmentation did not improve global questions</strong> — pass rate dropped from 61.2% (V3) to 58.3%, widening the gap with LGR to 13.1 points</li>
+<li><strong>Local questions remain strong</strong> at 85.3%, confirming LDA classification correctly shields local queries from augmentation effects</li>
+<li><strong>More sources ≠ better answers</strong> — the test query showed 13 DOIs vs 9, but broader context diluted answer quality rather than improving it</li>
+<li><strong>V1 (reasoning) remains the best GRZ overall</strong> — LLM-based relevance filtering outperforms LLM-based query expansion for this evaluation</li>
+</ul>
+
+<p><strong>Recommendations</strong>:</p>
+<ol>
+<li>For maximum GRZ quality: use V1 (reasoning) settings — accepts higher cost (~$0.38/query) for best global coverage</li>
+<li>For cost-optimized deployment: use V2 (dropoff) — $0.05/query with strong local (85.7%) and acceptable global (61.2%)</li>
+<li>For augmentation to work: likely needs higher-quality follow-on query generation, stricter relevance filtering of augmented chunks, or a larger chunk budget (&gt;200)</li>
+<li>To match LGR on global: the fundamental gap appears architectural — GRZ's community-based retrieval lacks LGR's graph-traversal diversity advantage</li>
+</ol>
+
+</body></html>

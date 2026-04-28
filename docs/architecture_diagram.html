@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>BenchmarkQED Pipeline — Azure Architecture</title>
+<style>
+body { font-family: Segoe UI, -apple-system, Arial, sans-serif; max-width: 1100px; margin: 40px auto; padding: 0 20px; color: #333; line-height: 1.6; background: #fafbfc; }
+h1 { color: #0078d4; border-bottom: 3px solid #0078d4; padding-bottom: 10px; font-size: 24px; }
+h2 { color: #005a9e; margin-top: 36px; font-size: 20px; border-bottom: 1px solid #d2d0ce; padding-bottom: 6px; }
+h3 { color: #323130; font-size: 15px; margin-top: 20px; }
+pre { background: #1e1e1e; color: #d4d4d4; padding: 20px; border-radius: 8px; overflow-x: auto; font-size: 12px; line-height: 1.5; font-family: 'Cascadia Code', Consolas, 'Courier New', monospace; }
+.mermaid-note { background: #fff3cd; border: 1px solid #ffc107; padding: 10px 14px; border-radius: 6px; font-size: 13px; margin: 10px 0; }
+table { border-collapse: collapse; width: 100%; margin: 14px 0; }
+th, td { border: 1px solid #d2d0ce; padding: 8px 12px; text-align: left; font-size: 13px; }
+th { background: #f3f2f1; font-weight: 600; }
+tr:nth-child(even) { background: #faf9f8; }
+code { background: #f3f2f1; padding: 2px 6px; border-radius: 3px; font-size: 12px; font-family: Consolas, monospace; }
+strong { color: #0078d4; }
+hr { border: none; border-top: 1px solid #d2d0ce; margin: 24px 0; }
+</style>
+</head><body>
+
+<h1>BenchmarkQED Evaluation Pipeline — Azure Architecture</h1>
+<p><strong>Deployment</strong>: Azure Container Apps + NFS + Azure OpenAI<br />
+<strong>Corpus</strong>: Leukemia Drug Discovery — 3,071 papers, 339K text units</p>
+
+<hr />
+
+<h2>1. High-Level Architecture</h2>
+
+<pre>
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                              Azure Subscription: e5886ea0                               │
+│                                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────────────────────────┐ │
+│  │  Resource Group: rg-benchmarkqed-poc                                                │ │
+│  │                                                                                     │ │
+│  │  ┌──────────────────────┐    ┌──────────────────────┐    ┌───────────────────────┐  │ │
+│  │  │  Azure Container App │    │  NFS Azure File Share │    │  Azure Container      │  │ │
+│  │  │  ┌────────────────┐  │    │  (checkpointsnfs)     │    │  Registry (ACR)       │  │ │
+│  │  │  │ benchmark-qed  │  │    │                       │    │  acrbqedpoc           │  │ │
+│  │  │  │                │  │    │  /mnt/checkpoints/    │    │                       │  │ │
+│  │  │  │  • AutoQ       │──┼────│  benchmark-qed-       │    │  benchmark-qed:v45    │  │ │
+│  │  │  │  • LGR Search  │  │    │  leukemia-v5/         │    │                       │  │ │
+│  │  │  │  • GRZ Search  │  │    │   ├─ output/          │    └───────────────────────┘  │ │
+│  │  │  │  • AutoE       │  │    │   ├─ embeddings/      │                               │ │
+│  │  │  │  • Retrieval   │  │    │   ├─ clustering/      │    ┌───────────────────────┐  │ │
+│  │  │  │    Metrics     │  │    │   └─ logs/            │    │  Managed Identity     │  │ │
+│  │  │  └────────────────┘  │    │                       │    │  id-bqed-poc          │  │ │
+│  │  │  Workload: E16       │    │  Persistent state     │    │  (5d6ec60b)           │  │ │
+│  │  │  (16 vCPU, 128GB)   │    │  across revisions     │    └───────────────────────┘  │ │
+│  │  └──────────────────────┘    └──────────────────────┘                               │ │
+│  └─────────────────────────────────────────────────────────────────────────────────────┘ │
+│                                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────────────────────────┐ │
+│  │  Resource Group: rg-graphragzero-poc                                                │ │
+│  │                                                                                     │ │
+│  │  ┌──────────────────────┐    ┌──────────────────────┐                               │ │
+│  │  │  Azure Container App │    │  Azure SQL Database   │                               │ │
+│  │  │  ┌────────────────┐  │    │  sql-grz-poc          │                               │ │
+│  │  │  │  grz-search    │  │    │  db: graphragzero     │                               │ │
+│  │  │  │                │  │    │                       │                               │ │
+│  │  │  │  REST API:     │  │    │  dbo.chunks           │                               │ │
+│  │  │  │  POST /search  │──┼────│  (336K rows)          │                               │ │
+│  │  │  │  GET /search/  │  │    │  chunk_id, source_id, │                               │ │
+│  │  │  │    {job_id}    │  │    │  formatted_chunk      │                               │ │
+│  │  │  └────────────────┘  │    └──────────────────────┘                               │ │
+│  │  └──────────────────────┘                                                           │ │
+│  └─────────────────────────────────────────────────────────────────────────────────────┘ │
+│                                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────────────────────────┐ │
+│  │  Managed Resource Group: mrg-dbksf-bkshlfleukemialgr-75kdp9                         │ │
+│  │  (Subscription: 546ec9a3)                                                           │ │
+│  │                                                                                     │ │
+│  │  ┌──────────────────────┐    ┌──────────────────────┐    ┌───────────────────────┐  │ │
+│  │  │  LGR Container App   │    │  Azure SQL Database   │    │  Azure Storage        │  │ │
+│  │  │  pvfwwpuawkbnnll-    │    │  sqls-dbksf-75kdp9aaa │    │  stdbksf75kdp9aaaa    │  │ │
+│  │  │  kb-aca              │    │  db: bkshlfleukemia   │    │                       │  │ │
+│  │  │                      │    │      eval_1           │    │  Queue: lgr-in        │  │ │
+│  │  │  LazyGraphRAG        │    │                       │    │  Blob: toolcall-      │  │ │
+│  │  │  Search Engine       │    │  dbo.text_units       │    │    results             │  │ │
+│  │  │                      │    │  (339K rows)          │    │                       │  │ │
+│  │  └──────────────────────┘    └──────────────────────┘    └───────────────────────┘  │ │
+│  └─────────────────────────────────────────────────────────────────────────────────────┘ │
+│                                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────────────────────────┐ │
+│  │  Azure OpenAI (Sweden Central)                                                      │ │
+│  │  aoai-lgr-poc.openai.azure.com                                                      │ │
+│  │                                                                                     │ │
+│  │  ┌─────────────────┐  ┌─────────────────────┐  ┌─────────────────────────────────┐ │ │
+│  │  │  gpt-5.2        │  │  gpt-5-mini         │  │  text-embedding-3-small         │ │ │
+│  │  │  • AutoQ gen    │  │  • GRZ reasoning    │  │  • Text unit embedding          │ │ │
+│  │  │  • AutoE score  │  │    grader (V1/V5)   │  │  • 1,536 dimensions             │ │ │
+│  │  │  • LGR/GRZ      │  │                     │  │  • 339K chunks embedded         │ │ │
+│  │  │    answer gen   │  │                     │  │                                 │ │ │
+│  │  │  • Retrieval    │  │                     │  │                                 │ │ │
+│  │  │    reference    │  │                     │  │                                 │ │ │
+│  │  └─────────────────┘  └─────────────────────┘  └─────────────────────────────────┘ │ │
+│  └─────────────────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+</pre>
+
+<hr />
+
+<h2>2. Pipeline Data Flow</h2>
+
+<pre>
+ ┌─────────────┐          ┌──────────────┐          ┌──────────────┐
+ │  Stage 0    │          │  Stage 1     │          │  Stage 2     │
+ │  SQL Export │─────────▶│  AutoQ       │─────────▶│  Search      │
+ └─────────────┘          └──────────────┘          └──────────────┘
+       │                        │                     │          │
+       │                        │                     │          │
+       ▼                        ▼                     ▼          ▼
+ ┌──────────┐           ┌────────────┐        ┌──────────┐ ┌──────────┐
+ │text_units│           │100 questions│        │LGR       │ │GRZ       │
+ │.parquet  │           │557 assertions│       │answers   │ │answers   │
+ │(339K     │           │(50L + 50G) │        │(queue/   │ │(REST     │
+ │ rows)    │           │            │        │ blob)    │ │ API)     │
+ └──────────┘           └────────────┘        └──────────┘ └──────────┘
+                                                   │          │
+                                                   ▼          ▼
+                                              ┌──────────────────┐
+                                              │  Stage 3a: AutoE │
+                                              │  Assertion Scoring│
+                                              │  (GPT-5.2 judges │
+                                              │   each assertion) │
+                                              └────────┬─────────┘
+                                                       │
+                                                       ▼
+                                              ┌──────────────────┐
+                                              │  Stage 3c:       │
+                                              │  Retrieval Metrics│
+                                              │  (Precision,     │
+                                              │   Recall,        │
+                                              │   Fidelity)      │
+                                              └────────┬─────────┘
+                                                       │
+                                                       ▼
+                                              ┌──────────────────┐
+                                              │  Reports (HTML)  │
+                                              │  • LGR eval      │
+                                              │  • GRZ V1-V4     │
+                                              │  • Comparison    │
+                                              └──────────────────┘
+</pre>
+
+<hr />
+
+<h2>3. Detailed Stage Flow</h2>
+
+<pre>
+Stage 0: SQL Export (one-time)
+═══════════════════════════════════════════════════════════════════════
+
+  LGR SQL DB                    Azure Storage                NFS
+  ┌─────────┐    pyodbc+MI     ┌──────────┐    az blob     ┌─────────┐
+  │text_units├──────────────▶ │lgr_text_ ├─────────────▶│text_units│
+  │(339K    │   export to     │units.    │  download    │.parquet  │
+  │ rows)   │   parquet       │parquet   │  to /data/   │(198 MB)  │
+  └─────────┘                 │(198 MB)  │              └─────────┘
+                              └──────────┘
+
+
+Stage 1: AutoQ (Question Generation)
+═══════════════════════════════════════════════════════════════════════
+
+  text_units.parquet
+        │
+        ▼
+  ┌──────────────┐    AOAI embed    ┌──────────────┐
+  │ Embed 339K   ├────────────────▶│ 10,604 batch │
+  │ text units   │    text-embed-   │ files cached │
+  └──────────────┘    3-small       └──────┬───────┘
+                                           │
+                                           ▼
+                                    ┌──────────────┐
+                                    │ KMeans k=50  │
+                                    │ clustering   │
+                                    └──────┬───────┘
+                                           │
+                      ┌────────────────────┼────────────────────┐
+                      ▼                    ▼                    ▼
+               ┌─────────────┐     ┌─────────────┐     ┌──────────────┐
+               │ 50 Local Qs │     │ 50 Global Qs│     │ 557 Assertions│
+               │ (1 per      │     │ (1 per      │     │ (grounded in │
+               │  cluster)   │     │  cluster)   │     │  corpus text)│
+               └─────────────┘     └─────────────┘     └──────────────┘
+                       │                  │                     │
+                       ▼                  ▼                     ▼
+               data_local_questions/  data_global_questions/  combined_
+               selected_questions.json  selected_questions.json assertions.json
+
+
+Stage 2: Search (LGR and GRZ)
+═══════════════════════════════════════════════════════════════════════
+
+  LGR Search Path:
+  ┌────────────┐  Queue msg   ┌────────────┐  Poll blob  ┌────────────┐
+  │benchmark-  ├─────────────▶│ LGR ACA    ├────────────▶│ Blob:      │
+  │qed sends   │  stdbksf/   │ processes  │  toolcall-  │ result.json│
+  │question to │  lgr-in     │ query      │  results/   │ (answer +  │
+  │Azure Queue │  queue      │            │  {corrId}/  │  chunks)   │
+  └────────────┘              └────────────┘              └────────────┘
+        │                                                       │
+        │              Parquet lookup                            │
+        │    ┌──────────────────────────┐                       │
+        └───▶│ Resolve chunk short_ids  │◀──────────────────────┘
+             │ text[:200] → short_id    │
+             │ 100% resolution rate     │
+             └──────────────────────────┘
+
+  GRZ Search Path:
+  ┌────────────┐  POST /search  ┌────────────┐  GET result  ┌────────────┐
+  │benchmark-  ├───────────────▶│ GRZ ACA    ├─────────────▶│ JSON       │
+  │qed sends   │  REST API     │ processes  │  /search/    │ response   │
+  │question    │               │ query      │  {job_id}    │ (answer +  │
+  │            │               │            │              │  sources)  │
+  └────────────┘               └────────────┘              └────────────┘
+
+
+Stage 3a: AutoE (Assertion Scoring)
+═══════════════════════════════════════════════════════════════════════
+
+  For each of 557 assertions × each answer:
+  ┌────────────┐   ┌──────────────┐   ┌────────────┐
+  │ Assertion  │ + │ Answer       │──▶│ GPT-5.2    │──▶ PASS / FAIL
+  │ "The       │   │ (LGR or GRZ) │   │ judges:    │    (4 trials,
+  │  response  │   │              │   │ "Does the  │     majority
+  │  should..."│   │              │   │  answer    │     vote)
+  └────────────┘   └──────────────┘   │  support   │
+                                      │  this?"    │
+                                      └────────────┘
+
+Stage 3c: Retrieval Metrics (LGR only)
+═══════════════════════════════════════════════════════════════════════
+
+  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+  │ Retrieved    │    │ GPT-5.2      │    │ Metrics:     │
+  │ chunks       │───▶│ relevance    │───▶│ • Precision  │
+  │ (1,961 with  │    │ assessment   │    │   77.3%      │
+  │  short_ids)  │    │ per cluster  │    │ • Recall     │
+  └──────────────┘    └──────────────┘    │   30.3%      │
+                                          │ • Fidelity   │
+                                          │   46.2%      │
+                                          └──────────────┘
+</pre>
+
+<hr />
+
+<h2>4. NFS Checkpoint Structure</h2>
+
+<pre>
+/mnt/checkpoints/benchmark-qed-leukemia-v5/
+├── embeddings/                    # 10,604 batch files (cached)
+├── clustering/                    # KMeans k=50 (cached)
+├── output/
+│   ├── text_units.parquet         # 339K chunks with embeddings (3.2 GB)
+│   ├── sample_texts.parquet       # 500 sampled text units
+│   │
+│   ├── data_local_questions/      # 50 local questions + 81 assertions
+│   │   └── selected_questions.json
+│   ├── data_global_questions/     # 50 global questions + 476 assertions
+│   │   └── selected_questions.json
+│   ├── combined_assertions.json   # All 557 assertions merged
+│   │
+│   ├── lgr_answers.json           # LGR answers (100 questions)
+│   ├── grz_answers.json           # GRZ latest answers
+│   ├── grz_answers_v1.json        # GRZ V1 (reasoning) answers
+│   ├── grz_answers_v2.json        # GRZ V2 (dropoff) answers
+│   ├── grz_answers_v3.json        # GRZ V3 (paper) answers
+│   ├── grz_answers_v4.json        # GRZ V4 (augmentation) answers
+│   │
+│   ├── lgr_search_checkpoints/    # 100 per-question LGR checkpoints
+│   ├── grz_search_checkpoints/    # 100 per-question GRZ checkpoints
+│   ├── lgr_retrieval_data.json    # 1,961 chunks with short_ids
+│   │
+│   ├── autoe_scores_20260425_*/   # LGR AutoE results
+│   ├── autoe_scores_20260427_17*/ # GRZ V1 AutoE results
+│   ├── autoe_scores_20260427_21*/ # GRZ V2 AutoE results
+│   ├── autoe_scores_20260427_23*/ # GRZ V3 AutoE results
+│   ├── autoe_scores_20260428_*/   # GRZ V4 AutoE results
+│   │
+│   ├── retrieval_reference/       # Cluster relevance assessments
+│   └── retrieval_scores_v3/       # Precision/recall/fidelity
+│
+└── logs/                          # Pipeline run logs
+</pre>
+
+<hr />
+
+<h2>5. Azure Resource Summary</h2>
+
+<table>
+<thead><tr><th>Resource</th><th>Type</th><th>Resource Group</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>benchmark-qed</code></td><td>Container App</td><td>rg-benchmarkqed-poc</td><td>Eval pipeline (AutoQ, AutoE, search scripts)</td></tr>
+<tr><td><code>acrbqedpoc</code></td><td>Container Registry</td><td>rg-benchmarkqed-poc</td><td>Docker images (v41-v45)</td></tr>
+<tr><td><code>id-bqed-poc</code></td><td>Managed Identity</td><td>rg-benchmarkqed-poc</td><td>AOAI, Storage, SQL access</td></tr>
+<tr><td><code>checkpointsnfs</code></td><td>NFS Azure Files</td><td>rg-benchmarkqed-poc</td><td>Persistent state across revisions</td></tr>
+<tr><td><code>grz-search</code></td><td>Container App</td><td>rg-graphragzero-poc</td><td>GRZ search REST API</td></tr>
+<tr><td><code>sql-grz-poc</code></td><td>Azure SQL</td><td>rg-graphragzero-poc</td><td>GRZ chunks (336K rows)</td></tr>
+<tr><td><code>pvfwwpuawkbnnll-kb-aca</code></td><td>Container App</td><td>mrg-dbksf-*</td><td>LGR search engine</td></tr>
+<tr><td><code>sqls-dbksf-75kdp9aaaa</code></td><td>Azure SQL</td><td>mrg-dbksf-*</td><td>LGR text_units (339K rows)</td></tr>
+<tr><td><code>stdbksf75kdp9aaaa</code></td><td>Storage Account</td><td>mrg-dbksf-*</td><td>LGR queue + blob (search I/O)</td></tr>
+<tr><td><code>aoai-lgr-poc</code></td><td>Azure OpenAI</td><td>–</td><td>GPT-5.2, GPT-5-mini, embeddings</td></tr>
+</tbody>
+</table>
+
+<hr />
+
+<h2>6. Authentication &amp; Access</h2>
+
+<table>
+<thead><tr><th>Access Path</th><th>Method</th><th>Identity</th></tr></thead>
+<tbody>
+<tr><td>BenchmarkQED → AOAI</td><td>Managed Identity</td><td>id-bqed-poc (5d6ec60b)</td></tr>
+<tr><td>BenchmarkQED → LGR Storage (queue/blob)</td><td>Managed Identity</td><td>id-bqed-poc → Storage Blob Data Contributor + Queue Sender</td></tr>
+<tr><td>BenchmarkQED → GRZ Search</td><td>REST API (no auth)</td><td>Direct HTTP POST/GET</td></tr>
+<tr><td>BenchmarkQED → NFS</td><td>Volume mount</td><td>ACA managed (storageType: NfsAzureFile)</td></tr>
+<tr><td>BenchmarkQED → ACR</td><td>Managed Identity</td><td>System-assigned MI on ACA</td></tr>
+<tr><td>LGR Container → LGR SQL</td><td>Managed Identity</td><td>id-dbksf-75kdp9aaaa (73d22962)</td></tr>
+</tbody>
+</table>
+
+</body></html>

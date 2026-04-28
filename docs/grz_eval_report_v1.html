@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>BenchmarkQED Evaluation Report — GraphRAG Zero V1 (Reasoning)</title>
+<style>
+body { font-family: Segoe UI, -apple-system, Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #333; line-height: 1.6; }
+h1 { color: #0078d4; border-bottom: 3px solid #0078d4; padding-bottom: 10px; font-size: 24px; }
+h2 { color: #005a9e; margin-top: 36px; font-size: 20px; border-bottom: 1px solid #d2d0ce; padding-bottom: 6px; }
+h3 { color: #323130; font-size: 15px; margin-top: 20px; }
+table { border-collapse: collapse; width: 100%; margin: 14px 0; }
+th, td { border: 1px solid #d2d0ce; padding: 8px 12px; text-align: left; font-size: 14px; }
+th { background: #f3f2f1; font-weight: 600; }
+tr:nth-child(even) { background: #faf9f8; }
+code { background: #f3f2f1; padding: 2px 6px; border-radius: 3px; font-size: 13px; font-family: Consolas, Courier New, monospace; }
+pre { background: #f3f2f1; padding: 14px; border-radius: 6px; overflow-x: auto; font-size: 13px; line-height: 1.4; }
+pre code { background: none; padding: 0; }
+hr { border: none; border-top: 1px solid #d2d0ce; margin: 24px 0; }
+strong { color: #0078d4; }
+ul, ol { padding-left: 24px; }
+li { margin-bottom: 4px; }
+p { margin: 8px 0; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+.badge-v1 { background: #e8f0fe; color: #1967d2; }
+</style>
+</head><body>
+
+<h1>BenchmarkQED Evaluation Report: GraphRAG Zero <span class="badge badge-v1">V1 — Reasoning</span></h1>
+<p><strong>Date</strong>: April 27, 2026<br />
+<strong>Pipeline Version</strong>: V5 (SQL-Grounded)<br />
+<strong>Search System Under Test</strong>: GraphRAG Zero (GRZ) — v6 settings with reasoning<br />
+<strong>Corpus</strong>: Leukemia Drug Discovery — 3,071 curated scientific papers</p>
+
+<hr />
+
+<h2>1. Dataset Overview</h2>
+
+<p>Same corpus and evaluation questions as the LGR evaluation. The dataset, questions, and assertions are identical — only the search system differs.</p>
+
+<table>
+<thead><tr><th>Property</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td><strong>Documents</strong></td><td>3,071</td></tr>
+<tr><td><strong>Text units (chunks)</strong></td><td>336,374 (GRZ's own chunking with metadata prefix)</td></tr>
+<tr><td><strong>Chunk size</strong></td><td>200 tokens (with metadata prefix consuming part of budget)</td></tr>
+<tr><td><strong>Evaluation Questions</strong></td><td>100 (50 local + 50 global)</td></tr>
+<tr><td><strong>Total Assertions</strong></td><td>557</td></tr>
+</tbody>
+</table>
+
+<h3>Note on Chunk Differences</h3>
+<p>GRZ prepends metadata (Chunk ID, Title, DOI, Authors) to each chunk's text before computing the 200-token window. This consumes tokens from the budget and shifts chunk boundaries relative to LGR, resulting in 336,374 chunks vs LGR's 339,308. Retrieval metrics (precision/recall) are not directly comparable due to this difference — only assertion-based answer quality is compared.</p>
+
+<hr />
+
+<h2>2. GRZ Search Settings (V1 — Reasoning)</h2>
+
+<p>This run used GRZ's <strong>v6 configuration</strong> with reasoning-based sampling enabled.</p>
+
+<h3>Retrieval &amp; Sampling Configuration</h3>
+<table>
+<thead><tr><th>Setting</th><th>Value</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>sampling.type</code></td><td><strong>reasoning</strong></td><td>LLM-based relevance grading of chunks</td></tr>
+<tr><td><code>sampling.max_answers_chunks</code></td><td>200</td><td>Matches LGR relevance budget</td></tr>
+<tr><td><code>sampling.level</code></td><td>null (auto)</td><td>Automatic level selection</td></tr>
+<tr><td><code>matching.top_n_nearest_chunks</code></td><td>1,200</td><td>Matches LGR</td></tr>
+<tr><td><code>dropoff.type</code></td><td>N/A</td><td>Not used in reasoning mode</td></tr>
+<tr><td><code>reasoning.text_completions_llm</code></td><td>grader (gpt-5-mini)</td><td>LLM grades chunk relevance</td></tr>
+<tr><td><code>reasoning.relevance_threshold</code></td><td>2</td><td>Minimum relevance score to include</td></tr>
+<tr><td><code>reasoning.batch_size</code></td><td>15</td><td>Chunks per reasoning batch</td></tr>
+<tr><td><code>reasoning.max_consecutive_failures</code></td><td>3</td><td>Early stopping on failures</td></tr>
+<tr><td><code>reasoning.max_concurrent</code></td><td>25</td><td>Parallel reasoning requests</td></tr>
+<tr><td><code>reasoning.adaptive_reorder</code></td><td>true</td><td>Reorder chunks by relevance</td></tr>
+<tr><td><code>reasoning.hit_rate_weight</code></td><td>0.5</td><td>Balance between hit rate and relevance</td></tr>
+<tr><td><code>reasoning.backfill</code></td><td>true</td><td>Backfill if under budget</td></tr>
+</tbody>
+</table>
+
+<hr />
+
+<h2>3. GRZ Search Results</h2>
+<table>
+<thead><tr><th>Metric</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td><strong>Questions sent</strong></td><td>100</td></tr>
+<tr><td><strong>Successful responses</strong></td><td>100 (0 timeouts, 0 errors)</td></tr>
+<tr><td><strong>Average response time</strong></td><td>~70 seconds</td></tr>
+<tr><td><strong>Search protocol</strong></td><td>REST API (POST + GET polling)</td></tr>
+</tbody>
+</table>
+
+<hr />
+
+<h2>4. Assertion-Based Metrics (Answer Quality)</h2>
+
+<h3>Overall Results</h3>
+<table>
+<thead><tr><th>Metric</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td><strong>Total assertions evaluated</strong></td><td>557</td></tr>
+<tr><td><strong>Assertions passed</strong></td><td>339</td></tr>
+<tr><td><strong>Assertions failed</strong></td><td>218</td></tr>
+<tr><td><strong>Overall accuracy</strong></td><td><strong>60.9%</strong></td></tr>
+<tr><td><strong>Average question pass rate</strong></td><td><strong>74.6%</strong></td></tr>
+</tbody>
+</table>
+
+<h3>Results by Question Type</h3>
+<table>
+<thead><tr><th>Type</th><th>Questions</th><th>Assertions</th><th>Pass Rate</th></tr></thead>
+<tbody>
+<tr><td><strong>Local</strong></td><td>50</td><td>81</td><td><strong>83.7%</strong></td></tr>
+<tr><td><strong>Global</strong></td><td>50</td><td>476</td><td><strong>65.5%</strong></td></tr>
+</tbody>
+</table>
+
+<h3>Comparison with LGR</h3>
+<table>
+<thead><tr><th>Metric</th><th>LGR</th><th>GRZ V1 (reasoning)</th><th>GRZ V2 (dropoff)</th><th>GRZ V3 (paper)</th><th>GRZ V4 (augment)</th></tr></thead>
+<tbody>
+<tr><td><strong>Overall pass rate</strong></td><td><strong>75.4%</strong></td><td>74.6%</td><td>73.4%</td><td>73.2%</td><td>71.8%</td></tr>
+<tr><td><strong>Local questions</strong></td><td>79.3%</td><td>83.7%</td><td><strong>85.7%</strong></td><td>85.3%</td><td>85.3%</td></tr>
+<tr><td><strong>Global questions</strong></td><td><strong>71.4%</strong></td><td>65.5%</td><td>61.2%</td><td>61.2%</td><td>58.3%</td></tr>
+<tr><td><strong>Overall accuracy</strong></td><td><strong>62.7%</strong></td><td>60.9%</td><td>56.6%</td><td>56.7%</td><td>54.9%</td></tr>
+</tbody>
+</table>
+
+<hr />
+
+<h2>5. Configuration Reference</h2>
+<table>
+<thead><tr><th>Component</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td><strong>GRZ Instance</strong></td><td><code>grz-search</code> (Sweden Central)</td></tr>
+<tr><td><strong>GRZ SQL Database</strong></td><td><code>sql-grz-poc</code> / <code>graphragzero</code></td></tr>
+<tr><td><strong>AOAI Endpoint</strong></td><td><code>aoai-lgr-poc</code> (Sweden Central)</td></tr>
+<tr><td><strong>Chat Model (answer generation)</strong></td><td>GPT-5.2 (temp=0, reasoning=none, seed=42)</td></tr>
+<tr><td><strong>Reasoning LLM (chunk grading)</strong></td><td>gpt-5-mini (grader)</td></tr>
+<tr><td><strong>AutoE Scoring Model</strong></td><td>GPT-5.2 (temp=0, reasoning=none, seed=42)</td></tr>
+<tr><td><strong>Container Image</strong></td><td>benchmark-qed:v44</td></tr>
+<tr><td><strong>AutoE Output</strong></td><td><code>autoe_scores_20260427_174842/</code></td></tr>
+</tbody>
+</table>
+
+<hr />
+
+<h2>6. Summary</h2>
+<p>GraphRAG Zero V1 (with reasoning-based sampling) achieves competitive answer quality compared to LazyGraphRAG:</p>
+<ul>
+<li><strong>Overall</strong>: GRZ V1 is within 1% of LGR on pass rate (74.6% vs 75.4%)</li>
+<li><strong>Local questions</strong>: GRZ V1 outperforms LGR by 4.4% — its reasoning-based chunk grading helps identify the most relevant passages for document-specific questions</li>
+<li><strong>Global questions</strong>: LGR leads by 5.9% — its graph-based retrieval provides better cross-document synthesis coverage</li>
+</ul>
+<p>The reasoning sampling approach uses an LLM (gpt-5-mini) to grade each candidate chunk's relevance before including it in the answer context. This adds latency but improves precision for local, fact-finding questions.</p>
+
+</body></html>

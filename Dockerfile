@@ -81,6 +81,9 @@ COPY scripts/run-eval.sh /app/run-eval.sh
 COPY scripts/run_autoq.py /app/scripts/run_autoq.py
 COPY scripts/export_qa_to_pdf.py /app/scripts/export_qa_to_pdf.py
 COPY scripts/blob_download.py /app/scripts/blob_download.py
+COPY scripts/lgr_search_v5.py /app/scripts/lgr_search_v5.py
+COPY scripts/grz_search.py /app/scripts/grz_search.py
+COPY scripts/generate_qa_md.py /app/scripts/generate_qa_md.py
 RUN chmod +x /app/startup.sh /app/run-eval.sh
 
 # Default entrypoint runs startup script (downloads data, then runs command)

@@ -1,0 +1,56 @@
+# BenchmarkQED Settings for Azure OpenAI with Managed Identity
+# Config format matches QuestionGenerationConfig schema
+
+chat_model:
+  model: "gpt-5.2"
+  auth_type: "azure_managed_identity"
+  concurrent_requests: 8
+  llm_provider: "azure.openai.chat"
+  init_args:
+    api_version: "2024-12-01-preview"
+    azure_endpoint: "${AZURE_OPENAI_ENDPOINT}"
+    azure_deployment: "gpt-5.2"
+  call_args:
+    temperature: 0.0
+    seed: 42
+    reasoning_effort: "none"
+
+embedding_model:
+  model: "text-embedding-3-small"
+  auth_type: "azure_managed_identity"
+  concurrent_requests: 32             # Increased from 16 - retry logic handles rate limits
+  llm_provider: "azure.openai.embedding"
+  init_args:
+    api_version: "2024-12-01-preview"
+    azure_endpoint: "${AZURE_OPENAI_ENDPOINT}"
+    azure_deployment: "text-embedding-3-small"
+
+encoding:
+  model_name: "o200k_base"
+  chunk_size: ${CHUNK_SIZE}
+  chunk_overlap: ${CHUNK_OVERLAP}
+
+input:
+  dataset_path: "/data/input"
+  input_type: "mixed"  # Load both .txt and .json files
+  prechunked_text_units_path: ${PRECHUNKED_TEXT_UNITS_PATH}
+
+sampling:
+  num_clusters: ${NUM_CLUSTERS}
+  num_samples_per_cluster: ${NUM_SAMPLES_PER_CLUSTER}
+
+# Question types - controlled via env vars at deployment
+# Set NUM_LOCAL_QUESTIONS, NUM_GLOBAL_QUESTIONS, NUM_LINKED_QUESTIONS
+# Default: only global enabled (local/linked=0 skips generation)
+data_local:
+  num_questions: ${NUM_LOCAL_QUESTIONS}
+  max_assertions: 20
+  enable_validation: true
+
+data_global:
+  num_questions: ${NUM_GLOBAL_QUESTIONS}
+  max_assertions: 20
+
+data_linked:
+  num_questions: ${NUM_LINKED_QUESTIONS}
+  max_assertions: 20

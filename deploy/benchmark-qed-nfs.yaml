@@ -1,0 +1,53 @@
+# benchmark-qed container app configuration with persistent NFS checkpoint storage
+# This ensures checkpoints survive container restarts/redeployments
+#
+# IMPORTANT: Uses subdirectory /mnt/checkpoints/benchmark-qed/ to avoid conflicts with lgr-app
+# The NFS share (lgrcachenfs) is shared - each app uses its own subdirectory:
+#   - lgr-app: /app/workdir/cache/{communities_checkpoint, graph_tuning, text_embedding, tune_graph_checkpoint}
+#   - benchmark-qed: /mnt/checkpoints/benchmark-qed/
+
+properties:
+  template:
+    containers:
+    - name: benchmark-qed
+      image: acrlgrpoc.azurecr.io/benchmark-qed:v15
+      args:
+        - "/app/run-eval.sh"
+        - "pilot"
+      env:
+        - name: AZURE_CLIENT_ID
+          secretRef: azure-client-id
+        - name: AZURE_OPENAI_ENDPOINT
+          secretRef: api-base
+        - name: CHECKPOINT_DIR
+          value: "/mnt/checkpoints/benchmark-qed"
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        # Blob storage for mpox dataset (same as lgr-app)
+        - name: BLOB_INPUT_URL
+          value: "https://stlgrmpoxdata.blob.core.windows.net/mpoxdata"
+        # LGR queue configuration (from lgr-app deployment)
+        - name: LGR_STORAGE_ACCOUNT
+          value: "stlgrpoc"
+        - name: LGR_IN_QUEUE
+          value: "lgr-search-in"
+        - name: LGR_OUT_QUEUE
+          value: "lgr-search-out"
+        - name: LGR_POLL_INTERVAL
+          value: "30"
+        - name: LGR_TIMEOUT
+          value: "120"
+      resources:
+        cpu: 4.0
+        memory: 16Gi
+      volumeMounts:
+        - mountPath: /mnt/checkpoints
+          volumeName: checkpoint-vol
+    volumes:
+      - name: checkpoint-vol
+        storageName: lgrcachenfs
+        storageType: NfsAzureFile
+    scale:
+      minReplicas: 0
+      maxReplicas: 1
+  workloadProfileName: E16

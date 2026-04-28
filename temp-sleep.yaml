@@ -1,0 +1,104 @@
+properties:
+  template:
+    containers:
+    - name: benchmark-qed
+      image: acrbqedpoc.azurecr.io/benchmark-qed:v45
+      command:
+        - /bin/bash
+        - "-c"
+        - |
+          set -e
+          OUTPUT_DIR="/mnt/checkpoints/benchmark-qed-leukemia-v5/output"
+          echo "=== GRZ Search V2 + AutoE Pipeline ==="
+          
+          # Back up old GRZ answers
+          if [ -f "$OUTPUT_DIR/grz_answers.json" ]; then
+            cp "$OUTPUT_DIR/grz_answers.json" "$OUTPUT_DIR/grz_answers_v4.json"
+            echo "Backed up old GRZ answers to grz_answers_v4.json"
+          fi
+          
+          # Clear old GRZ search checkpoints to force re-run
+          rm -rf "$OUTPUT_DIR/grz_search_checkpoints"
+          rm -f "$OUTPUT_DIR/grz_answers.json"
+          echo "Cleared old GRZ search checkpoints"
+          
+          # Step 1: Run GRZ search (100 questions, ~2 hours)
+          echo "=== Step 1: GRZ Search ==="
+          python3 -u /app/scripts/grz_search.py
+          echo "GRZ Search complete"
+          
+          # Step 2: Prepare for AutoE
+          echo "=== Step 2: AutoE on GRZ answers ==="
+          cp "$OUTPUT_DIR/grz_answers.json" "$OUTPUT_DIR/answers.json"
+          echo "GRZ answers copied to answers.json ($(python3 -c "import json; print(len(json.load(open('$OUTPUT_DIR/answers.json'))))" ) questions)"
+          
+          # Step 3: Run AutoE
+          cd /app && /app/run-eval.sh --full
+          
+          # Step 4: Restore LGR answers and generate Q&A export
+          cp "$OUTPUT_DIR/lgr_answers.json" "$OUTPUT_DIR/answers.json"
+          echo "Restored lgr_answers.json to answers.json"
+          
+          # Step 5: Generate GRZ Q&A markdown + HTML
+          python3 /app/scripts/generate_qa_md.py "$OUTPUT_DIR/grz_answers.json" "$OUTPUT_DIR/grz_qa_v5.md" "$OUTPUT_DIR/grz_qa_v5.html"
+          echo "GRZ Q&A export generated"
+          
+          echo "=== Pipeline Complete. Sleeping... ==="
+          sleep 86400
+      env:
+        - name: AZURE_CLIENT_ID
+          value: "5d6ec60b-bc36-4e8c-88f6-a9667816db88"
+        - name: AZURE_OPENAI_ENDPOINT
+          value: "https://aoai-lgr-poc.openai.azure.com/"
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: CHECKPOINT_DIR
+          value: "/mnt/checkpoints/benchmark-qed-leukemia-v5"
+        - name: NUM_CLUSTERS
+          value: "50"
+        - name: NUM_LOCAL_QUESTIONS
+          value: "50"
+        - name: NUM_GLOBAL_QUESTIONS
+          value: "50"
+        - name: GENERATION_TYPES
+          value: "data_local,data_global"
+        - name: CHUNK_SIZE
+          value: "200"
+        - name: CHUNK_OVERLAP
+          value: "40"
+        - name: PRECHUNKED_TEXT_UNITS_PATH
+          value: "/mnt/checkpoints/benchmark-qed-leukemia-v5/output/text_units.parquet"
+        - name: SKIP_AUTOQ
+          value: "true"
+        - name: SKIP_LGR_SEARCH
+          value: "true"
+        - name: SKIP_AUTOE
+          value: "false"
+        - name: SKIP_RETRIEVAL_METRICS
+          value: "true"
+        - name: LGR_STORAGE_ACCOUNT
+          value: "stdbksf75kdp9aaaa"
+        - name: LGR_IN_QUEUE
+          value: "bkshlfleukemialgr-bkshlfleukemiaeval-1-in"
+        - name: LGR_BLOB_CONTAINER
+          value: "toolcall-results"
+        - name: LGR_KB_NAME
+          value: "bkshlfleukemiaeval"
+        - name: LGR_POLL_INTERVAL
+          value: "10"
+        - name: LGR_TIMEOUT
+          value: "600"
+      resources:
+        cpu: 16.0
+        memory: 128Gi
+      volumeMounts:
+        - mountPath: /mnt/checkpoints
+          volumeName: checkpoints
+    scale:
+      minReplicas: 1
+      maxReplicas: 1
+    volumes:
+      - name: checkpoints
+        storageName: checkpointsnfs
+        storageType: NfsAzureFile
+  workloadProfileName: E16

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "swedencentral"
+    },
+    "envSuffix": {
+      "value": "bqed-poc"
+    },
+    "adminObjectId": {
+      "value": "<YOUR_ENTRA_USER_OR_GROUP_OBJECT_ID>"
+    },
+    "tags": {
+      "value": {
+        "project": "BenchmarkQED",
+        "environment": "poc",
+        "owner": "AI for Science Platform"
+      }
+    }
+  }
+}
