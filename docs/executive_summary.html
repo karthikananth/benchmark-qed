@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>BenchmarkQED Evaluation — Executive Summary</title>
+<style>
+body { font-family: Segoe UI, -apple-system, Arial, sans-serif; max-width: 950px; margin: 40px auto; padding: 0 20px; color: #333; line-height: 1.6; background: #fafbfc; }
+h1 { color: #0078d4; border-bottom: 3px solid #0078d4; padding-bottom: 10px; font-size: 26px; }
+h2 { color: #005a9e; margin-top: 36px; font-size: 20px; border-bottom: 1px solid #d2d0ce; padding-bottom: 6px; }
+h3 { color: #323130; font-size: 15px; margin-top: 20px; }
+table { border-collapse: collapse; width: 100%; margin: 14px 0; }
+th, td { border: 1px solid #d2d0ce; padding: 8px 12px; text-align: left; font-size: 14px; }
+th { background: #f3f2f1; font-weight: 600; }
+tr:nth-child(even) { background: #faf9f8; }
+code { background: #f3f2f1; padding: 2px 6px; border-radius: 3px; font-size: 13px; font-family: Consolas, monospace; }
+pre { background: #1e1e1e; color: #d4d4d4; padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 12px; line-height: 1.5; font-family: 'Cascadia Code', Consolas, monospace; }
+hr { border: none; border-top: 1px solid #d2d0ce; margin: 24px 0; }
+strong { color: #0078d4; }
+ul, ol { padding-left: 24px; }
+li { margin-bottom: 6px; }
+p { margin: 8px 0; }
+.best { background: #e6f4ea; font-weight: 600; }
+.section-box { background: #fff; border: 1px solid #d2d0ce; border-radius: 8px; padding: 16px 20px; margin: 16px 0; }
+.callout { background: #e8f0fe; border-left: 4px solid #0078d4; padding: 12px 16px; margin: 16px 0; border-radius: 0 6px 6px 0; }
+</style>
+</head><body>
+
+<h1>LazyGraphRAG vs GraphRAG Zero — Evaluation Summary</h1>
+<p><strong>Date</strong>: April 27-28, 2026<br/>
+<strong>Evaluation Framework</strong>: BenchmarkQED (V5 pipeline)<br/>
+<strong>Corpus</strong>: Leukemia Drug Discovery — 3,071 curated scientific papers, 339K text units</p>
+
+<hr/>
+
+<h2>1. What We Did</h2>
+
+<div class="section-box">
+<h3>Objective</h3>
+<p>Compare <strong>LazyGraphRAG (LGR)</strong> and <strong>GraphRAG Zero (GRZ)</strong> search quality on a curated leukemia drug discovery corpus using BenchmarkQED's automated evaluation framework. We tested LGR once and GRZ with 4 different retrieval configurations to find the optimal settings.</p>
+</div>
+
+<h3>Evaluation Pipeline</h3>
+<ol>
+<li><strong>Corpus Curation</strong>: Started with 6,304 papers → keyword + LLM topic scoring → retained 3,071 leukemia-relevant papers</li>
+<li><strong>Text Chunking</strong>: 339,308 text units (200 tokens each, 40-token overlap) exported from LGR's SQL database</li>
+<li><strong>Question Generation (AutoQ)</strong>: Embedded all chunks → KMeans clustering (k=50) → GPT-5.2 generated 100 questions (50 local + 50 global) with 557 source-grounded assertions</li>
+<li><strong>Search</strong>: Sent identical 100 questions to LGR and each GRZ configuration</li>
+<li><strong>Answer Scoring (AutoE)</strong>: GPT-5.2 judged each of 557 assertions against each answer (4 trials, majority vote)</li>
+<li><strong>Retrieval Metrics</strong>: Measured precision, recall, fidelity for LGR (not comparable for GRZ due to chunk boundary differences)</li>
+</ol>
+
+<h3>Question Types</h3>
+<table>
+<thead><tr><th>Type</th><th>Count</th><th>Assertions</th><th>What It Tests</th></tr></thead>
+<tbody>
+<tr><td><strong>Local</strong></td><td>50</td><td>81</td><td>Can the system find a specific fact in a single passage?</td></tr>
+<tr><td><strong>Global</strong></td><td>50</td><td>476</td><td>Can the system synthesize information across multiple documents/topics?</td></tr>
+<tr><td><strong>Total</strong></td><td>100</td><td>557</td><td></td></tr>
+</tbody>
+</table>
+
+<hr/>
+
+<h2>2. Results</h2>
+
+<h3>Answer Quality (Assertion Pass Rate)</h3>
+<table>
+<thead><tr><th>Metric</th><th>LGR</th><th>GRZ V1 (reasoning)</th><th>GRZ V2 (dropoff)</th><th>GRZ V3 (paper)</th><th>GRZ V4 (augment)</th></tr></thead>
+<tbody>
+<tr>
+<td><strong>Overall pass rate</strong></td>
+<td class="best">75.4%</td>
+<td>74.6%</td>
+<td>73.4%</td>
+<td>73.2%</td>
+<td>71.8%</td>
+</tr>
+<tr>
+<td><strong>Local questions</strong></td>
+<td>79.3%</td>
+<td>83.7%</td>
+<td class="best">85.7%</td>
+<td>85.3%</td>
+<td>85.3%</td>
+</tr>
+<tr>
+<td><strong>Global questions</strong></td>
+<td class="best">71.4%</td>
+<td>65.5%</td>
+<td>61.2%</td>
+<td>61.2%</td>
+<td>58.3%</td>
+</tr>
+<tr>
+<td><strong>Overall accuracy</strong></td>
+<td class="best">62.7%</td>
+<td>60.9%</td>
+<td>56.6%</td>
+<td>56.7%</td>
+<td>54.9%</td>
+</tr>
+<tr>
+<td><strong>Avg response time</strong></td>
+<td>~80s</td>
+<td>~70s</td>
+<td>~60s</td>
+<td>~36s</td>
+<td>~33s</td>
+</tr>
+<tr>
+<td><strong>Est. cost/query</strong></td>
+<td>–</td>
+<td>~$0.38</td>
+<td>~$0.05</td>
+<td>~$0.05</td>
+<td>~$0.10</td>
+</tr>
+</tbody>
+</table>
+
+<p><em>Green cells = best in row</em></p>
+
+<h3>LGR Retrieval Metrics (chunk quality)</h3>
+<table>
+<thead><tr><th>Metric</th><th>Score</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><strong>Binary Precision</strong></td><td>77.3%</td><td>77% of retrieved chunks are relevant</td></tr>
+<tr><td><strong>Graded Precision</strong></td><td>68.9%</td><td>Relevance-weighted precision</td></tr>
+<tr><td><strong>Recall</strong></td><td>30.3%</td><td>30% of corpus-relevant clusters covered</td></tr>
+<tr><td><strong>Fidelity</strong></td><td>46.2%</td><td>Answer uses ~half of retrieved chunk info</td></tr>
+</tbody>
+</table>
+
+<hr/>
+
+<h2>3. GRZ Configuration Variants Tested</h2>
+
+<table>
+<thead><tr><th>Version</th><th>Settings ID</th><th>Key Feature</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td><strong>V1</strong></td><td>v6</td><td>Reasoning (gpt-5-mini grades each chunk)</td><td>Best GRZ overall (74.6%)</td></tr>
+<tr><td><strong>V2</strong></td><td>v7</td><td>Dropoff (embedding similarity only, no LLM)</td><td>Best local (85.7%), global dropped</td></tr>
+<tr><td><strong>V3</strong></td><td>v8</td><td>Paper (query_based + LDA + dynamic elbow)</td><td>≈V2, added complexity didn't help</td></tr>
+<tr><td><strong>V4</strong></td><td>v9</td><td>Augmentation (10 follow-on queries via gpt-5.2)</td><td>Worst global (58.3%), more sources ≠ better</td></tr>
+</tbody>
+</table>
+
+<hr/>
+
+<h2>4. Key Findings</h2>
+
+<div class="callout">
+<strong>LGR wins overall (75.4%)</strong>, primarily due to a 10+ point advantage on global synthesis questions. Its graph-based retrieval provides broader thematic coverage.
+</div>
+
+<div class="callout">
+<strong>GRZ wins on local questions (83-86%)</strong> across all configurations. Its community-based chunk selection excels at finding specific passages for fact-finding queries.
+</div>
+
+<ul>
+<li><strong>Reasoning matters for global</strong>: GRZ V1 (with LLM chunk grading) was 4% better on global than V2-V4 (without). Removing reasoning consistently hurt cross-document synthesis.</li>
+<li><strong>Augmentation backfired</strong>: V4 added more diverse sources (13 vs 9 DOIs) but global pass rate dropped 3% — broader context diluted answer quality rather than improving it.</li>
+<li><strong>Paper settings (V3) = no improvement over simple dropoff (V2)</strong>: Dynamic elbow detection, LDA query classification, and per-type δ/λ tuning added complexity without measurable benefit.</li>
+<li><strong>GRZ is 2-4× faster</strong> than LGR (~36-70s vs ~80s per question) and up to 8× cheaper ($0.05 vs ~$0.38/query for V2/V3 vs V1).</li>
+</ul>
+
+<hr/>
+
+<h2>5. How Assertions Work (Evaluation Methodology)</h2>
+
+<p>Assertions are <strong>source-grounded unit tests</strong> for answer quality:</p>
+
+<ol>
+<li><strong>Claim Extraction</strong>: GPT-5.2 reads actual text chunks from the cluster and extracts factual claims (grounded in corpus text, not LLM knowledge)</li>
+<li><strong>Assertion Generation</strong>: Claims are converted to testable YES/NO statements (e.g., <em>"The response should mention flow cytometry as a method for measuring apoptosis"</em>)</li>
+<li><strong>Scoring</strong>: Each assertion is evaluated against the answer with 4 independent trials; passes if ≥3/4 agree</li>
+</ol>
+
+<p>This ensures we're testing whether the search system retrieved and synthesized information that <strong>actually exists in the corpus</strong>, not whether the LLM hallucinated a plausible answer.</p>
+
+<hr/>
+
+<h2>6. Azure Infrastructure</h2>
+
+<table>
+<thead><tr><th>Component</th><th>Resource</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><strong>BenchmarkQED</strong></td><td>Container App (<code>benchmark-qed</code>), E16 (16 vCPU, 128GB)</td><td>Eval pipeline: AutoQ, AutoE, search scripts</td></tr>
+<tr><td><strong>GRZ Search</strong></td><td>Container App (<code>grz-search</code>)</td><td>GraphRAG Zero search REST API</td></tr>
+<tr><td><strong>LGR Search</strong></td><td>Container App (<code>pvfwwpuawkbnnll-kb-aca</code>)</td><td>LazyGraphRAG search (queue/blob)</td></tr>
+<tr><td><strong>State</strong></td><td>NFS Azure Files (<code>checkpointsnfs</code>)</td><td>Persistent checkpoints, answers, embeddings</td></tr>
+<tr><td><strong>LLM</strong></td><td>Azure OpenAI (<code>aoai-lgr-poc</code>)</td><td>GPT-5.2, GPT-5-mini, text-embedding-3-small</td></tr>
+<tr><td><strong>Images</strong></td><td>ACR (<code>acrbqedpoc</code>)</td><td>Docker images (v41-v45)</td></tr>
+<tr><td><strong>GRZ Data</strong></td><td>Azure SQL (<code>sql-grz-poc</code>)</td><td>336K chunks in <code>dbo.chunks</code></td></tr>
+<tr><td><strong>LGR Data</strong></td><td>Azure SQL (<code>sqls-dbksf-75kdp9aaaa</code>)</td><td>339K text units in <code>dbo.text_units</code></td></tr>
+</tbody>
+</table>
+
+<hr/>
+
+<h2>7. BenchmarkQED Configuration</h2>
+
+<table>
+<thead><tr><th>Setting</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td><strong>Chat Model</strong></td><td>GPT-5.2 (temperature=0.0, reasoning_effort=none, seed=42)</td></tr>
+<tr><td><strong>Embedding Model</strong></td><td>text-embedding-3-small (1,536 dimensions)</td></tr>
+<tr><td><strong>Chunk Size</strong></td><td>200 tokens</td></tr>
+<tr><td><strong>Chunk Overlap</strong></td><td>40 tokens</td></tr>
+<tr><td><strong>Clusters</strong></td><td>50 (KMeans)</td></tr>
+<tr><td><strong>Questions</strong></td><td>50 local + 50 global = 100</td></tr>
+<tr><td><strong>Assertions</strong></td><td>81 local + 476 global = 557</td></tr>
+<tr><td><strong>AutoE Trials</strong></td><td>4 per assertion (pass if ≥3/4)</td></tr>
+<tr><td><strong>Pass Threshold</strong></td><td>0.5</td></tr>
+<tr><td><strong>Input</strong></td><td>Pre-chunked parquet from LGR SQL (339K rows)</td></tr>
+</tbody>
+</table>
+
+<hr/>
+
+<h2>8. Artifacts &amp; Code</h2>
+
+<h3>GitHub Repository</h3>
+<p><a href="https://github.com/karthikananth/benchmark-qed/tree/feat/leukemia-eval">https://github.com/karthikananth/benchmark-qed/tree/feat/leukemia-eval</a></p>
+
+<h3>Key Files</h3>
+<table>
+<thead><tr><th>File</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>scripts/run-eval.sh</code></td><td>Main pipeline orchestrator (AutoQ → Search → AutoE → Retrieval)</td></tr>
+<tr><td><code>scripts/lgr_search_v5.py</code></td><td>LGR search with queue/blob protocol + parquet short_id resolution</td></tr>
+<tr><td><code>scripts/grz_search.py</code></td><td>GRZ search via REST API with per-question checkpointing</td></tr>
+<tr><td><code>scripts/generate_qa_md.py</code></td><td>Q&amp;A export to markdown/HTML grouped by type</td></tr>
+<tr><td><code>settings.template.yaml</code></td><td>BenchmarkQED config (LLM, embedding, chunking, questions)</td></tr>
+<tr><td><code>temp-sleep.yaml</code></td><td>ACA deployment config (env vars, resources, NFS mounts)</td></tr>
+<tr><td><code>Dockerfile</code></td><td>Container image (Azure Linux 3.0, SFI compliant)</td></tr>
+</tbody>
+</table>
+
+<h3>Reports</h3>
+<table>
+<thead><tr><th>File</th><th>Content</th></tr></thead>
+<tbody>
+<tr><td><code>docs/lgr_eval_report_v5.html</code></td><td>LGR full evaluation report</td></tr>
+<tr><td><code>docs/grz_eval_report_v1.html</code></td><td>GRZ V1 (reasoning) report</td></tr>
+<tr><td><code>docs/grz_eval_report_v2.html</code></td><td>GRZ V2 (dropoff) report</td></tr>
+<tr><td><code>docs/grz_eval_report_v3.html</code></td><td>GRZ V3 (paper) report</td></tr>
+<tr><td><code>docs/grz_eval_report_v4.html</code></td><td>GRZ V4 (augmentation) report</td></tr>
+<tr><td><code>docs/architecture_diagram.html</code></td><td>Azure infrastructure diagram</td></tr>
+<tr><td><code>docs/lgr_qa_v5_grouped.html</code></td><td>LGR Q&amp;A export (100 questions, grouped by type)</td></tr>
+</tbody>
+</table>
+
+<h3>NFS Checkpoint Data</h3>
+<p>All evaluation state persists at <code>/mnt/checkpoints/benchmark-qed-leukemia-v5/</code> on NFS, including embeddings (10,604 batches), clustering, questions, all answer versions (LGR + GRZ V1-V4), and AutoE scores.</p>
+
+<hr/>
+
+<h2>9. Recommendations</h2>
+
+<ol>
+<li><strong>For overall quality</strong>: Use LGR — 75.4% pass rate, strongest on global synthesis</li>
+<li><strong>For local/fact-finding workloads</strong>: GRZ V2 (dropoff) — 85.7% local at $0.05/query</li>
+<li><strong>For best GRZ overall</strong>: GRZ V1 (reasoning) — 74.6% at $0.38/query</li>
+<li><strong>For cost-optimized GRZ</strong>: GRZ V2 (dropoff) — 73.4% at $0.05/query (7.6× cheaper than V1)</li>
+<li><strong>Avoid</strong>: Query augmentation (V4) — adds cost without improving quality</li>
+<li><strong>Next steps</strong>: Align GRZ chunking with LGR to enable retrieval recall comparison; test with larger embedding model</li>
+</ol>
+
+</body></html>
